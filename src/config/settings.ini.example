@@ -1,0 +1,48 @@
+; GUI Slider MultiMonitor - Configuration File
+; This is an example configuration file
+; Copy this file to 'settings.ini' and adjust the values
+
+[General]
+; Default position when sliding out (Top, Bottom, Left, Right)
+DefaultPosition=Top
+
+; Enable logging for debugging
+EnableLogging=False
+
+; Log level (DEBUG, INFO, WARN, ERROR)
+LogLevel=INFO
+
+; Tolerance for monitor alignment detection (pixels)
+MonitorTolerance=5
+
+[Animation]
+; Number of animation steps (higher = smoother)
+AnimationSteps=10
+
+; Delay between animation steps (milliseconds)
+AnimationDelay=20
+
+[Hotkeys]
+; Hotkey combinations
+; ^ = Ctrl, ! = Alt, + = Shift, # = Win
+SlideLeft=^{LEFT}
+SlideRight=^{RIGHT}
+SlideUp=^{UP}
+SlideDown=^{DOWN}
+Toggle=^{SPACE}
+
+[Window]
+; Window settings (automatically updated)
+; X=-1
+; Y=-1
+; Width=300
+; Height=400
+; Monitor=1
+; IsOut=False
+; Position=Top
+
+[Advanced]
+; Advanced settings
+; AutoHideDelay=5000
+; MagneticEdges=True
+; MagneticStrength=20

@@ -1,0 +1,47 @@
+# GUI Slider MultiMonitor - Git Ignore File
+
+# User-specific configuration
+settings.ini
+config/settings.ini
+
+# Log files
+*.log
+
+# Compiled files
+*.exe
+*.a3x
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# AutoIt specific
+*.ini
+!settings.ini.example
+
+# IDE specific
+.idea/
+.vscode/
+*.au3.tidy
+
+# OS specific
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test output
+tests/output/
+tests/results/
+
+# Local development
+local/
+dev/
+
+# Documentation build
+docs/_build/
+docs/html/
