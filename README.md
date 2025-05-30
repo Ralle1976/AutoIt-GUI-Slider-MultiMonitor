@@ -8,7 +8,7 @@ Eine AutoIt UDF (User Defined Function) für Multi-Monitor GUI Slider-Systeme.
 - **Multi-Monitor**: Unterstützt 1-8 Monitore in beliebiger Anordnung
 - **Auto-Slide-In**: Automatisches Einfahren bei Mouse-Over
 - **Einfache Integration**: Ein `#include` und wenige Funktionsaufrufe
-- **UDF-Standard**: Vollständig dokumentierte API
+- **Dokumentiert**: Vollständige Funktionsreferenz
 
 ## 📦 Installation
 
@@ -83,7 +83,7 @@ _SliderSystem_SetMode($SLIDER_MODE_STANDARD)
 - Original-Verhalten
 - Monitor-Wechsel bei Nachbarn, sonst Slide OUT
 
-## 📋 API-Referenz
+## 📋 Funktionsreferenz
 
 ### Initialisierung
 - `_SliderSystem_Init($hGUI)` - Initialisiert das System für ein GUI
@@ -150,7 +150,7 @@ GUI-Slider-MultiMonitor/
 │   └── advanced-example.au3   # Erweiterte Funktionen
 ├── docs/
 │   ├── README.md              # Diese Datei
-│   └── API_REFERENCE.md       # Detaillierte API-Dokumentation
+│   └── FUNCTIONS.md           # Detaillierte Funktionsdokumentation
 └── tests/
     └── test-all-modes.au3     # Test-Suite
 ```
@@ -182,6 +182,6 @@ MIT License - siehe [LICENSE](LICENSE) Datei für Details.
 
 ## 🔗 Links
 
-- [GitHub Repository](https://github.com/Ralle1976/GUI-Slider-MultiMonitor)
+- [GitHub Repository](https://github.com/Ralle1976/AutoIt-GUI-Slider-MultiMonitor)
 - [AutoIt Community](https://www.autoitscript.com/forum/)
 - [Beispiele und Tutorials](examples/)
