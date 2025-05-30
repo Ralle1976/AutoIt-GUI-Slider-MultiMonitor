@@ -12,7 +12,7 @@
 ; GUI-Elemente
 Global $hMainGUI, $btnLeft, $btnUp, $btnStop, $btnDown, $btnRight
 Global $comboMode, $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
-Global $lblInfo, $btnConfig, $btnAbout
+Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset
 
 ; Einstellungen
 Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
@@ -24,9 +24,9 @@ Func _CreateTestGUI()
     GUISetBkColor(0xF0F0F0)
     
     ; Titel
-    Local $lblTitle = GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 400, 25, 1)
-    GUICtrlSetFont($lblTitle, 14, 800)
-    GUICtrlSetColor($lblTitle, 0x0066CC)
+    GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 400, 25, 1)
+    GUICtrlSetFont(-1, 14, 800)
+    GUICtrlSetColor(-1, 0x0066CC)
     
     ; Slider-Steuerung (5-Tasten-Layout)
     GUICtrlCreateGroup("Slider-Steuerung", 10, 50, 200, 120)
@@ -74,8 +74,8 @@ Func _CreateTestGUI()
     $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 90, 30)
     $btnAbout = GUICtrlCreateButton("Über", 120, 200, 60, 30)
     
-    Local $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
-    Local $btnReset = GUICtrlCreateButton("Position zurücksetzen", 300, 200, 100, 30)
+    $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
+    $btnReset = GUICtrlCreateButton("Position zurücksetzen", 300, 200, 100, 30)
     
     ; Status-Anzeige
     GUICtrlCreateGroup("Status", 10, 250, 400, 80)
@@ -317,7 +317,12 @@ While 1
             
         ; Funktions-Buttons
         Case $btnConfig
-            _SliderSystem_ShowConfig()
+            MsgBox(0, "Konfiguration", "Erweiterte Konfiguration:" & @CRLF & @CRLF & _
+                   "• Modus: " & _SliderSystem_GetMode() & @CRLF & _
+                   "• Monitor: " & _SliderSystem_GetCurrentMonitor() & @CRLF & _
+                   "• Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & @CRLF & _
+                   "• Position: " & _SliderSystem_GetSlidePosition() & @CRLF & @CRLF & _
+                   "Verwende die Einstellungen im Hauptfenster zum Anpassen.")
             
         Case $btnAbout
             MsgBox(0, "Über", "GUI-Slider MultiMonitor Test Tool" & @CRLF & @CRLF & _
@@ -328,12 +333,11 @@ While 1
                    "Alt+Space: Stop/Zurück zur Mitte" & @CRLF & _
                    "Esc: Beenden")
                    
-        Case Else
-            If $msg = GUICtrlRead($lblTitle) + 1000 Then  ; Test alle Modi
-                _TestAllModes()
-            ElseIf $msg = GUICtrlRead($lblTitle) + 1001 Then  ; Reset Position
-                _ResetPosition()
-            EndIf
+        Case $btnTest
+            _TestAllModes()
+            
+        Case $btnReset
+            _ResetPosition()
     EndSwitch
     
     ; Status regelmäßig aktualisieren
