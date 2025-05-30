@@ -143,12 +143,31 @@ Func _DrawMonitors()
         _LogWarning("Keine Monitore zum Zeichnen vorhanden")
         Return
     EndIf
-    
+
     _LogDebug("Zeichne " & $g_aMonitors[0][0] & " Monitore")
 
-    ; Offset für Zentrierung berechnen
-    Local $iOffsetX = 30
-    Local $iOffsetY = 50
+    ; Berechne Grenzen aller Monitore für optimale Skalierung
+    Local $iMinX = 999999, $iMinY = 999999
+    Local $iMaxX = -999999, $iMaxY = -999999
+    
+    For $i = 1 To $g_aMonitors[0][0]
+        If $g_aMonitors[$i][2] < $iMinX Then $iMinX = $g_aMonitors[$i][2]
+        If $g_aMonitors[$i][3] < $iMinY Then $iMinY = $g_aMonitors[$i][3]
+        If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iMaxX Then $iMaxX = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
+        If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iMaxY Then $iMaxY = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
+    Next
+    
+    Local $iTotalWidth = $iMaxX - $iMinX
+    Local $iTotalHeight = $iMaxY - $iMinY
+    
+    ; Berechne optimale Skalierung und Offset
+    Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
+    Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
+    Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
+    
+    ; Zentriere das Layout
+    Local $iOffsetX = ($g_iVisWidth - ($iTotalWidth * $fScale)) / 2
+    Local $iOffsetY = 70  ; Platz für Titel
 
     ; Brushes und Pens
     Local $hBrushInactive = _GDIPlus_BrushCreateSolid($COLOR_MONITOR)
@@ -160,11 +179,13 @@ Func _DrawMonitors()
     _GDIPlus_StringFormatSetAlign($hStringFormat, 1)  ; Center align
 
     For $i = 1 To $g_aMonitors[0][0]
-        ; Skalierte Koordinaten
-        Local $iX = $iOffsetX + ($g_aMonitors[$i][2] * $g_fScale)
-        Local $iY = $iOffsetY + ($g_aMonitors[$i][3] * $g_fScale)
-        Local $iW = $g_aMonitors[$i][0] * $g_fScale
-        Local $iH = $g_aMonitors[$i][1] * $g_fScale
+        ; Skalierte Koordinaten (mit Offset für negative Koordinaten)
+        Local $iX = $iOffsetX + (($g_aMonitors[$i][2] - $iMinX) * $fScale)
+        Local $iY = $iOffsetY + (($g_aMonitors[$i][3] - $iMinY) * $fScale)
+        Local $iW = $g_aMonitors[$i][0] * $fScale
+        Local $iH = $g_aMonitors[$i][1] * $fScale
+        
+        _LogDebug("Monitor " & $i & " - Zeichne bei X=" & $iX & ", Y=" & $iY & ", W=" & $iW & ", H=" & $iH)
 
         ; Monitor-Rechteck zeichnen
         Local $hBrush = ($i = $g_iCurrentScreenNumber) ? $hBrushActive : $hBrushInactive
@@ -179,7 +200,7 @@ Func _DrawMonitors()
                 $sMonitorText = "Display " & $iDisplayNum
             EndIf
         EndIf
-        
+
         Local $tLayout = _GDIPlus_RectFCreate($iX, $iY + $iH/2 - 10, $iW, 20)
         _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sMonitorText, $hFont, $tLayout, $hStringFormat, $hBrushText)
 
@@ -209,15 +230,34 @@ Func _DrawGUIWindow()
     Local $aPos = WinGetPos($g_hMainGUI)
     If Not IsArray($aPos) Then Return
 
-    ; Offset für Zentrierung
-    Local $iOffsetX = 30
-    Local $iOffsetY = 50
+    ; Berechne die gleichen Grenzen und Skalierung wie in _DrawMonitors()
+    Local $iMinX = 999999, $iMinY = 999999
+    Local $iMaxX = -999999, $iMaxY = -999999
+    
+    For $i = 1 To $g_aMonitors[0][0]
+        If $g_aMonitors[$i][2] < $iMinX Then $iMinX = $g_aMonitors[$i][2]
+        If $g_aMonitors[$i][3] < $iMinY Then $iMinY = $g_aMonitors[$i][3]
+        If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iMaxX Then $iMaxX = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
+        If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iMaxY Then $iMaxY = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
+    Next
+    
+    Local $iTotalWidth = $iMaxX - $iMinX
+    Local $iTotalHeight = $iMaxY - $iMinY
+    
+    ; Berechne optimale Skalierung und Offset (identisch mit _DrawMonitors)
+    Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
+    Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
+    Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
+    
+    ; Zentriere das Layout (identisch mit _DrawMonitors)
+    Local $iOffsetX = ($g_iVisWidth - ($iTotalWidth * $fScale)) / 2
+    Local $iOffsetY = 70  ; Platz für Titel
 
-    ; Skalierte Koordinaten
-    Local $iX = $iOffsetX + ($aPos[0] * $g_fScale)
-    Local $iY = $iOffsetY + ($aPos[1] * $g_fScale)
-    Local $iW = $aPos[2] * $g_fScale
-    Local $iH = $aPos[3] * $g_fScale
+    ; Skalierte Koordinaten (mit Offset für negative Koordinaten)
+    Local $iX = $iOffsetX + (($aPos[0] - $iMinX) * $fScale)
+    Local $iY = $iOffsetY + (($aPos[1] - $iMinY) * $fScale)
+    Local $iW = $aPos[2] * $fScale
+    Local $iH = $aPos[3] * $fScale
 
     ; Farbe basierend auf Status
     Local $iColor = $g_bIsAnimating ? $COLOR_GUI_SLIDING : $COLOR_GUI_WINDOW
@@ -295,6 +335,19 @@ EndFunc
 ; Aktualisiert die Visualisierung
 Func _UpdateVisualization()
     If Not IsHWnd($g_hVisualizerGUI) Then Return
+    
+    ; Aktualisiere aktuellen Monitor basierend auf GUI-Position
+    If IsHWnd($g_hMainGUI) Then
+        Local $aPos = WinGetPos($g_hMainGUI)
+        If IsArray($aPos) Then
+            Local $iDetectedMonitor = _GetMonitorAtPoint($aPos[0] + $aPos[2]/2, $aPos[1] + $aPos[3]/2)
+            If $iDetectedMonitor <> $g_iCurrentScreenNumber Then
+                _LogDebug("Monitor-Wechsel erkannt: " & $g_iCurrentScreenNumber & " -> " & $iDetectedMonitor)
+                $g_iCurrentScreenNumber = $iDetectedMonitor
+            EndIf
+        EndIf
+    EndIf
+    
     _DrawVisualization()
 EndFunc
 

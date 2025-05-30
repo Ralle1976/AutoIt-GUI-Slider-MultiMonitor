@@ -14,23 +14,31 @@ Global $g_aMonitorDetails[1][6] ; [Index][DeviceName, Left, Top, Width, Height, 
 Func _GetMonitors()
     _LogInfo("Starte Monitor-Erkennung...")
     
-    ; Versuche zuerst die erweiterte Methode
-    Local $aMonitors = _GetMonitorsExtended()
-    If @error Or $aMonitors[0][0] = 0 Then
-        _LogWarning("Erweiterte Monitor-Erkennung fehlgeschlagen, verwende Basis-Methode")
-        $aMonitors = _GetMonitorsBasic()
-        If @error Or $aMonitors[0][0] = 0 Then
-            _LogError("Beide Monitor-Erkennungsmethoden fehlgeschlagen, verwende Notfall-Fallback")
-            $aMonitors = _GetMonitorsFallback()
+    ; Versuche zuerst die Basis-Methode (funktioniert zuverlässig)
+    Local $aMonitors = _GetMonitorsBasic()
+    If @error Or $aMonitors[0][0] = 0 Or _HasInvalidPositions($aMonitors) Then
+        _LogWarning("Basis-Monitor-Erkennung fehlgeschlagen oder ungültige Positionen, versuche erweiterte Methode")
+        $aMonitors = _GetMonitorsExtended()
+        If @error Or $aMonitors[0][0] = 0 Or _HasInvalidPositions($aMonitors) Then
+            _LogWarning("Erweiterte Monitor-Erkennung fehlgeschlagen, verwende einfache Methode")
+            $aMonitors = _GetMonitorsSimple()
             If @error Or $aMonitors[0][0] = 0 Then
-                _LogError("Monitor-Erkennung komplett fehlgeschlagen!")
-                Return SetError($ERR_NO_MONITORS, 0, 0)
+                _LogError("Alle Monitor-Erkennungsmethoden fehlgeschlagen, verwende Notfall-Fallback")
+                $aMonitors = _GetMonitorsFallback()
+                If @error Or $aMonitors[0][0] = 0 Then
+                    _LogError("Monitor-Erkennung komplett fehlgeschlagen!")
+                    Return SetError($ERR_NO_MONITORS, 0, 0)
+                EndIf
             EndIf
         EndIf
     EndIf
     
+    ; Erstelle physisches Monitor-Mapping (Windows-Nummer -> Physische Position)
+    _CreatePhysicalMapping($aMonitors)
+    
     ; Debug-Ausgabe
     _LogInfo("Monitor-Erkennung erfolgreich: " & $aMonitors[0][0] & " Monitore")
+    _LogInfo("Monitore in Windows-Nummerierung (originale Reihenfolge):")
     _LogInfo("=== Monitor-Konfiguration ===")
     _LogInfo("Anzahl Monitore: " & $aMonitors[0][0])
     
@@ -61,6 +69,43 @@ Func _GetMonitorsFallback()
     $g_aMonitors = $aMonitors
     
     _LogInfo("Fallback: 1 Monitor mit " & @DesktopWidth & "x" & @DesktopHeight & " @ 0,0")
+    
+    Return $aMonitors
+EndFunc
+
+; Einfache Monitor-Erkennung mit SystemMetrics (Alternative)
+Func _GetMonitorsSimple()
+    _LogDebug("Verwende einfache Monitor-Erkennung mit SystemMetrics")
+    
+    ; Hole Display-Anzahl direkt
+    Local $iMonitorCount = DllCall("user32.dll", "int", "GetSystemMetrics", "int", 80)[0]  ; SM_CMONITORS
+    
+    If $iMonitorCount <= 0 Then $iMonitorCount = 1  ; Mindestens 1 Monitor
+    
+    Local $aMonitors[$iMonitorCount + 1][4]
+    $aMonitors[0][0] = $iMonitorCount
+    
+    ; Für jeden Monitor Desktop-Informationen sammeln
+    For $i = 1 To $iMonitorCount
+        If $i = 1 Then
+            ; Primärer Monitor
+            $aMonitors[$i][0] = @DesktopWidth
+            $aMonitors[$i][1] = @DesktopHeight  
+            $aMonitors[$i][2] = 0
+            $aMonitors[$i][3] = 0
+        Else
+            ; Weitere Monitore - Standardwerte
+            $aMonitors[$i][0] = 1920
+            $aMonitors[$i][1] = 1080
+            $aMonitors[$i][2] = ($i - 1) * 1920  ; Nebeneinander
+            $aMonitors[$i][3] = 0
+        EndIf
+        
+        _LogDebug("Monitor " & $i & " (Simple): " & $aMonitors[$i][0] & "x" & $aMonitors[$i][1] & " @ " & $aMonitors[$i][2] & "," & $aMonitors[$i][3])
+    Next
+    
+    $g_iMonitorCount = $iMonitorCount
+    $g_aMonitors = $aMonitors
     
     Return $aMonitors
 EndFunc
@@ -100,12 +145,21 @@ $iMonitorCount = DllStructGetData($tData, "Count")
         Local $tMonitorInfo = DllStructCreate("dword Size;int Left;int Top;int Right;int Bottom;int WorkLeft;int WorkTop;int WorkRight;int WorkBottom;dword Flags")
         DllStructSetData($tMonitorInfo, "Size", DllStructGetSize($tMonitorInfo))
         
-        DllCall("user32.dll", "bool", "GetMonitorInfo", "handle", $hMonitor, "ptr", DllStructGetPtr($tMonitorInfo))
+        Local $aResult = DllCall("user32.dll", "bool", "GetMonitorInfo", "handle", $hMonitor, "ptr", DllStructGetPtr($tMonitorInfo))
         
-        $aMonitors[$i][0] = DllStructGetData($tMonitorInfo, "Right") - DllStructGetData($tMonitorInfo, "Left")
-        $aMonitors[$i][1] = DllStructGetData($tMonitorInfo, "Bottom") - DllStructGetData($tMonitorInfo, "Top")
-        $aMonitors[$i][2] = DllStructGetData($tMonitorInfo, "Left")
-        $aMonitors[$i][3] = DllStructGetData($tMonitorInfo, "Top")
+        If @error Or Not $aResult[0] Then
+            _LogError("GetMonitorInfo fehlgeschlagen für Monitor " & $i & " - Error: " & @error)
+            ; Fallback-Werte setzen
+            $aMonitors[$i][0] = 1920  ; Standard-Breite
+            $aMonitors[$i][1] = 1080  ; Standard-Höhe
+            $aMonitors[$i][2] = ($i - 1) * 1920  ; Nebeneinander anordnen
+            $aMonitors[$i][3] = 0
+        Else
+            $aMonitors[$i][0] = DllStructGetData($tMonitorInfo, "Right") - DllStructGetData($tMonitorInfo, "Left")
+            $aMonitors[$i][1] = DllStructGetData($tMonitorInfo, "Bottom") - DllStructGetData($tMonitorInfo, "Top")
+            $aMonitors[$i][2] = DllStructGetData($tMonitorInfo, "Left")
+            $aMonitors[$i][3] = DllStructGetData($tMonitorInfo, "Top")
+        EndIf
         
         _LogDebug("Monitor " & $i & ": " & $aMonitors[$i][0] & "x" & $aMonitors[$i][1] & " @ " & $aMonitors[$i][2] & "," & $aMonitors[$i][3])
     Next
@@ -202,6 +256,15 @@ Func _GetMonitorsExtended()
     ; Sortiere Monitore nach Display-Nummer (aus DeviceName)
     _SortMonitorsByDisplayNumber($aDisplays, $iDisplayCount)
 
+    ; Debug-Ausgabe vor Konvertierung
+    _LogDebug("=== Monitore nach Sortierung ===")
+    For $i = 1 To $iDisplayCount
+        Local $iDispNum = _ExtractDisplayNumber($aDisplays[$i][0])
+        _LogDebug("Index " & $i & ": " & $aDisplays[$i][0] & " (Display " & $iDispNum & ") @ " & _
+                 $aDisplays[$i][1] & "," & $aDisplays[$i][2] & " - " & _
+                 $aDisplays[$i][3] & "x" & $aDisplays[$i][4])
+    Next
+
     ; Konvertiere in Standard-Format
     Local $aMonitors[$iDisplayCount + 1][4] = [[$iDisplayCount]]
     For $i = 1 To $iDisplayCount
@@ -279,7 +342,63 @@ Func _GetMonitorAtPoint($x, $y)
         EndIf
     Next
 
-    Return 0 ; Kein Monitor gefunden
+    ; Kein Monitor gefunden - versuche intelligente Erkennung für ausgefahrene GUIs
+    _LogDebug("Punkt " & $x & "," & $y & " auf keinem Monitor gefunden - intelligente Erkennung")
+    
+    ; Prüfe ob Punkt links oder rechts von einem Monitor ist (ausgefahrenes GUI)
+    For $i = 1 To $g_aMonitors[0][0]
+        Local $iMonLeft = $g_aMonitors[$i][2]
+        Local $iMonRight = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
+        Local $iMonTop = $g_aMonitors[$i][3]
+        Local $iMonBottom = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
+        
+        ; Prüfe Y-Überlappung mit erweiterten Grenzen
+        If $y >= ($iMonTop - 100) And $y <= ($iMonBottom + 100) Then
+            ; Links vom Monitor (GUI nach links ausgefahren)
+            If $x < $iMonLeft And $x >= ($iMonLeft - 500) Then
+                _LogDebug("Erkannt als ausgefahrenes GUI links von Monitor " & $i)
+                Return $i
+            EndIf
+            ; Rechts vom Monitor (GUI nach rechts ausgefahren)  
+            If $x >= $iMonRight And $x <= ($iMonRight + 500) Then
+                _LogDebug("Erkannt als ausgefahrenes GUI rechts von Monitor " & $i)
+                Return $i
+            EndIf
+        EndIf
+        
+        ; Prüfe X-Überlappung für oben/unten
+        If $x >= ($iMonLeft - 100) And $x <= ($iMonRight + 100) Then
+            ; Oberhalb des Monitors (GUI nach oben ausgefahren)
+            If $y < $iMonTop And $y >= ($iMonTop - 500) Then
+                _LogDebug("Erkannt als ausgefahrenes GUI oberhalb von Monitor " & $i)
+                Return $i
+            EndIf
+            ; Unterhalb des Monitors (GUI nach unten ausgefahren)
+            If $y >= $iMonBottom And $y <= ($iMonBottom + 500) Then
+                _LogDebug("Erkannt als ausgefahrenes GUI unterhalb von Monitor " & $i)
+                Return $i
+            EndIf
+        EndIf
+    Next
+    
+    ; Fallback: nächstgelegenen Monitor finden
+    _LogWarning("Kein Monitor in der Nähe - verwende nächstgelegenen")
+    Local $iClosestMonitor = 1
+    Local $fMinDistance = 999999
+    
+    For $i = 1 To $g_aMonitors[0][0]
+        Local $iMonCenterX = $g_aMonitors[$i][2] + ($g_aMonitors[$i][0] / 2)
+        Local $iMonCenterY = $g_aMonitors[$i][3] + ($g_aMonitors[$i][1] / 2)
+        Local $fDistance = Sqrt(($x - $iMonCenterX)^2 + ($y - $iMonCenterY)^2)
+        
+        If $fDistance < $fMinDistance Then
+            $fMinDistance = $fDistance
+            $iClosestMonitor = $i
+        EndIf
+    Next
+    
+    _LogInfo("Verwende nächstgelegenen Monitor: " & $iClosestMonitor)
+    Return $iClosestMonitor
 EndFunc
 
 ; Überprüft, ob es einen angrenzenden Monitor in einer bestimmten Richtung gibt
@@ -429,4 +548,164 @@ Func _LogMonitorInfoDetailed()
     Next
 
     _LogInfo("===========================")
+EndFunc
+
+; Validiert einen Monitor-Index
+Func _IsValidMonitor($iMonitor)
+    If $g_iMonitorCount = 0 Then _GetMonitors()
+    Return ($iMonitor >= 1 And $iMonitor <= $g_aMonitors[0][0])
+EndFunc
+
+; Validiert und korrigiert einen Monitor-Index
+Func _ValidateMonitorIndex(ByRef $iMonitor)
+    If Not _IsValidMonitor($iMonitor) Then
+        _LogWarning("Ungültiger Monitor-Index: " & $iMonitor & " - korrigiere auf primären Monitor")
+        $iMonitor = _GetPrimaryMonitor()
+        If Not _IsValidMonitor($iMonitor) Then
+            $iMonitor = 1  ; Letzter Fallback
+        EndIf
+    EndIf
+    Return $iMonitor
+EndFunc
+
+; Prüft ob Monitor-Array ungültige Positionen hat (alle 0,0)
+Func _HasInvalidPositions($aMonitors)
+    If Not IsArray($aMonitors) Or UBound($aMonitors) < 2 Then Return True
+    
+    ; Prüfe ob mehr als ein Monitor alle die gleiche Position haben
+    Local $iSamePositions = 0
+    For $i = 1 To $aMonitors[0][0]
+        If $aMonitors[$i][2] = 0 And $aMonitors[$i][3] = 0 Then
+            $iSamePositions += 1
+        EndIf
+    Next
+    
+    ; Wenn mehr als 1 Monitor bei 0,0 ist, sind die Positionen ungültig
+    Return ($iSamePositions > 1)
+EndFunc
+
+; Sortiert Monitore nach X-Position (links nach rechts)
+Func _SortMonitorsByPosition(ByRef $aMonitors)
+    If Not IsArray($aMonitors) Or $aMonitors[0][0] <= 1 Then Return
+    
+    _LogDebug("Sortiere " & $aMonitors[0][0] & " Monitore nach X-Position")
+    
+    ; Bubble Sort nach X-Koordinate
+    For $i = 1 To $aMonitors[0][0] - 1
+        For $j = $i + 1 To $aMonitors[0][0]
+            ; Wenn Monitor j weiter links ist als Monitor i, tausche sie
+            If $aMonitors[$j][2] < $aMonitors[$i][2] Then
+                ; Tausche alle 4 Werte (Breite, Höhe, X, Y)
+                For $k = 0 To 3
+                    Local $temp = $aMonitors[$i][$k]
+                    $aMonitors[$i][$k] = $aMonitors[$j][$k]
+                    $aMonitors[$j][$k] = $temp
+                Next
+                _LogDebug("Getauscht: Monitor " & $i & " mit Monitor " & $j)
+            EndIf
+        Next
+    Next
+    
+    _LogDebug("Sortierung abgeschlossen")
+EndFunc
+
+; Gibt den visuellen Monitor-Index zurück (basierend auf Position von links nach rechts)
+Func _GetVisualMonitorIndex($iMonitor)
+    If $iMonitor < 1 Or $iMonitor > $g_iMonitorCount Then Return $iMonitor
+    
+    ; Zähle wie viele Monitore links von diesem Monitor sind
+    Local $iLeftCount = 0
+    Local $iThisX = $g_aMonitors[$iMonitor][2]
+    
+    For $i = 1 To $g_iMonitorCount
+        If $i <> $iMonitor And $g_aMonitors[$i][2] < $iThisX Then
+            $iLeftCount += 1
+        EndIf
+    Next
+    
+    Return $iLeftCount + 1 ; 1-basiert
+EndFunc
+
+; Gibt die tatsächliche Display-Nummer zurück (aus Windows Device Name)
+Func _GetActualDisplayNumber($iMonitor)
+    If $iMonitor < 1 Or $iMonitor > $g_iMonitorCount Then Return $iMonitor
+    
+    If UBound($g_aMonitorDetails) > $iMonitor And UBound($g_aMonitorDetails, 2) >= 6 Then
+        Local $iDisplayNum = _ExtractDisplayNumber($g_aMonitorDetails[$iMonitor][0])
+        If $iDisplayNum <> 999 Then
+            Return $iDisplayNum
+        EndIf
+    EndIf
+    
+    Return $iMonitor
+EndFunc
+
+; Erstellt das physische Monitor-Mapping (Windows-Nummer -> Physische Position)
+Func _CreatePhysicalMapping($aMonitors)
+    Local $iCount = $aMonitors[0][0]
+    ReDim $g_aPhysicalMapping[$iCount + 1][3]
+    $g_iPhysicalMappingCount = $iCount
+    
+    ; Sammle alle Monitore mit ihrer Windows-Nummer und X-Position
+    For $i = 1 To $iCount
+        $g_aPhysicalMapping[$i][0] = $i  ; Windows-Nummer
+        $g_aPhysicalMapping[$i][1] = $aMonitors[$i][2]  ; X-Position
+        If $aMonitors[$i][2] < 0 Then
+            $g_aPhysicalMapping[$i][2] = "Links"
+        ElseIf $aMonitors[$i][2] = 0 Then
+            $g_aPhysicalMapping[$i][2] = "Mitte"
+        Else
+            $g_aPhysicalMapping[$i][2] = "Rechts"
+        EndIf
+    Next
+    
+    ; Sortiere nach X-Position (links nach rechts) - nur das Mapping, nicht die originalen Monitore
+    For $i = 1 To $iCount - 1
+        For $j = $i + 1 To $iCount
+            If $g_aPhysicalMapping[$j][1] < $g_aPhysicalMapping[$i][1] Then
+                ; Tausche
+                For $k = 0 To 2
+                    Local $temp = $g_aPhysicalMapping[$i][$k]
+                    $g_aPhysicalMapping[$i][$k] = $g_aPhysicalMapping[$j][$k]
+                    $g_aPhysicalMapping[$j][$k] = $temp
+                Next
+            EndIf
+        Next
+    Next
+    
+    _LogInfo("=== Physisches Monitor-Mapping ===")
+    For $i = 1 To $iCount
+        _LogInfo("Physisch Position " & $i & " (" & $g_aPhysicalMapping[$i][2] & "): Windows Monitor " & $g_aPhysicalMapping[$i][0])
+    Next
+    _LogInfo("==================================")
+EndFunc
+
+; Gibt die Windows-Monitor-Nummer für eine physische Position zurück (1=links, 2=mitte, 3=rechts)
+Func _GetWindowsMonitorByPhysicalPosition($iPhysicalPos)
+    If $iPhysicalPos < 1 Or $iPhysicalPos > $g_iPhysicalMappingCount Then Return 0
+    Return $g_aPhysicalMapping[$iPhysicalPos][0]
+EndFunc
+
+; Gibt die physische Position für eine Windows-Monitor-Nummer zurück (1=links, 2=mitte, 3=rechts)
+Func _GetPhysicalPositionByWindowsMonitor($iWindowsMonitor)
+    For $i = 1 To $g_iPhysicalMappingCount
+        If $g_aPhysicalMapping[$i][0] = $iWindowsMonitor Then
+            Return $i
+        EndIf
+    Next
+    Return 0
+EndFunc
+
+; Gibt den physisch linken Nachbar-Monitor zurück
+Func _GetPhysicalLeftMonitor($iWindowsMonitor)
+    Local $iPhysicalPos = _GetPhysicalPositionByWindowsMonitor($iWindowsMonitor)
+    If $iPhysicalPos <= 1 Then Return 0  ; Ist bereits ganz links
+    Return _GetWindowsMonitorByPhysicalPosition($iPhysicalPos - 1)
+EndFunc
+
+; Gibt den physisch rechten Nachbar-Monitor zurück
+Func _GetPhysicalRightMonitor($iWindowsMonitor)
+    Local $iPhysicalPos = _GetPhysicalPositionByWindowsMonitor($iWindowsMonitor)
+    If $iPhysicalPos >= $g_iPhysicalMappingCount Then Return 0  ; Ist bereits ganz rechts
+    Return _GetWindowsMonitorByPhysicalPosition($iPhysicalPos + 1)
 EndFunc

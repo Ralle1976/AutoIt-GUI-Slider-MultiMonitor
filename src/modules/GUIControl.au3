@@ -39,15 +39,6 @@ Func _CreateMainGUI()
     Local $lblMonitorInfo = GUICtrlCreateLabel("Monitor: " & $g_iCurrentScreenNumber, 10, 50, $g_iGUIWidth - 20, 20, $SS_CENTER)
     GUICtrlSetFont($lblMonitorInfo, 10, 400, 0, "Arial")
     GUICtrlSetColor($lblMonitorInfo, 0xAAAAAA)
-    ; Zeige korrekte Display-Nummer wenn verfügbar
-    Local $sDisplayText = "Monitor: " & $g_iCurrentScreenNumber
-    If UBound($g_aMonitorDetails) > $g_iCurrentScreenNumber And UBound($g_aMonitorDetails, 2) >= 6 Then
-        Local $iDisplayNum = _ExtractDisplayNumber($g_aMonitorDetails[$g_iCurrentScreenNumber][0])
-        If $iDisplayNum <> 999 Then
-            $sDisplayText = "Display: " & $iDisplayNum
-        EndIf
-    EndIf
-    GUICtrlSetData($lblMonitorInfo, $sDisplayText & " | Position: " & $g_sWindowIsAt)
 
     ; Kontroll-Buttons
     Local $btnLeft = GUICtrlCreateButton("◄", 10, 80, 60, 40)
@@ -120,40 +111,74 @@ EndFunc
 ; Button Events
 Func _OnButtonLeft()
     _UpdateStatus("Slide nach links...")
-    If _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_LEFT) Then
-        _MoveToNextMonitor($g_hMainGUI, $POS_LEFT)
+    
+    If $g_bClassicSliderMode Then
+        ; Klassischer Modus: 1. Klick = Monitor wechseln, 2. Klick = Slide Out
+        _ClassicSlideLeft()
+    ElseIf $g_bDirectSlideMode Then
+        ; Direct Modus: Sofort Slide (ignoriert Nachbarn)
+        _DirectSlideLeft()
+    ElseIf $g_bContinuousSlideMode Then
+        ; Continuous Modus: Kontinuierliche Fahrt bis zum Rand
+        _ContinuousSlideLeft()
     Else
-        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_OUT)
+        ; Standard-Modus: Bei angrenzendem Monitor -> zum nächsten Monitor
+        _StandardSlideLeft()
     EndIf
     _UpdateMonitorInfo()
 EndFunc
 
 Func _OnButtonRight()
     _UpdateStatus("Slide nach rechts...")
-    If _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_RIGHT) Then
-        _MoveToNextMonitor($g_hMainGUI, $POS_RIGHT)
+    
+    If $g_bClassicSliderMode Then
+        ; Klassischer Modus: 1. Klick = Monitor wechseln, 2. Klick = Slide Out
+        _ClassicSlideRight()
+    ElseIf $g_bDirectSlideMode Then
+        ; Direct Modus: Sofort Slide (ignoriert Nachbarn)
+        _DirectSlideRight()
+    ElseIf $g_bContinuousSlideMode Then
+        ; Continuous Modus: Kontinuierliche Fahrt bis zum Rand
+        _ContinuousSlideRight()
     Else
-        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_OUT)
+        ; Standard-Modus: Bei angrenzendem Monitor -> zum nächsten Monitor
+        _StandardSlideRight()
     EndIf
     _UpdateMonitorInfo()
 EndFunc
 
 Func _OnButtonUp()
     _UpdateStatus("Slide nach oben...")
-    If _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_TOP) Then
+    ; Vertikale Bewegung: Nur herausfahren wenn KEIN angrenzender Monitor
+    Local $iNextMonitor = _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_TOP)
+    If $iNextMonitor > 0 Then
+        ; Angrenzender Monitor vorhanden -> NICHT herausfahren, sondern wechseln
         _MoveToNextMonitor($g_hMainGUI, $POS_TOP)
     Else
-        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_TOP, $ANIM_OUT)
+        ; Kein angrenzender Monitor -> herausfahren oder hineinfahren
+        If $g_bWindowIsOut And $g_sWindowIsAt = $POS_TOP Then
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_TOP, $ANIM_IN)
+        Else
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_TOP, $ANIM_OUT)
+        EndIf
     EndIf
     _UpdateMonitorInfo()
 EndFunc
 
 Func _OnButtonDown()
     _UpdateStatus("Slide nach unten...")
-    If _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_BOTTOM) Then
+    ; Vertikale Bewegung: Nur herausfahren wenn KEIN angrenzender Monitor
+    Local $iNextMonitor = _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_BOTTOM)
+    If $iNextMonitor > 0 Then
+        ; Angrenzender Monitor vorhanden -> NICHT herausfahren, sondern wechseln
         _MoveToNextMonitor($g_hMainGUI, $POS_BOTTOM)
     Else
-        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_BOTTOM, $ANIM_OUT)
+        ; Kein angrenzender Monitor -> herausfahren oder hineinfahren
+        If $g_bWindowIsOut And $g_sWindowIsAt = $POS_BOTTOM Then
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_BOTTOM, $ANIM_IN)
+        Else
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_BOTTOM, $ANIM_OUT)
+        EndIf
     EndIf
     _UpdateMonitorInfo()
 EndFunc
@@ -168,13 +193,20 @@ EndFunc
 Func _UpdateMonitorInfo()
     If Not IsDeclared("g_idLblMonitorInfo") Then Return
 
-    ; Zeige korrekte Display-Nummer wenn verfügbar
-    Local $sDisplayText = "Monitor: " & $g_iCurrentScreenNumber
-    If UBound($g_aMonitorDetails) > $g_iCurrentScreenNumber And UBound($g_aMonitorDetails, 2) >= 6 Then
-        Local $iDisplayNum = _ExtractDisplayNumber($g_aMonitorDetails[$g_iCurrentScreenNumber][0])
-        If $iDisplayNum <> 999 Then
-            $sDisplayText = "Display: " & $iDisplayNum
-        EndIf
+    ; Stelle sicher, dass wir einen gültigen Monitor-Index haben
+    If $g_iCurrentScreenNumber < 1 Or $g_iCurrentScreenNumber > $g_iMonitorCount Then
+        _LogWarning("Ungültiger Monitor-Index in _UpdateMonitorInfo: " & $g_iCurrentScreenNumber)
+        $g_iCurrentScreenNumber = _GetPrimaryMonitor()
+        If $g_iCurrentScreenNumber < 1 Then $g_iCurrentScreenNumber = 1
+    EndIf
+
+    ; Zeige visuelle Position und Windows Display-Nummer
+    Local $iVisualIndex = _GetVisualMonitorIndex($g_iCurrentScreenNumber)
+    Local $iActualDisplay = _GetActualDisplayNumber($g_iCurrentScreenNumber)
+    
+    Local $sDisplayText = "Monitor " & $iVisualIndex
+    If $iActualDisplay <> $g_iCurrentScreenNumber Then
+        $sDisplayText &= " (Display " & $iActualDisplay & ")"
     EndIf
     
     Local $sInfo = $sDisplayText
@@ -198,11 +230,23 @@ Func _UpdateCurrentMonitor()
     If Not IsArray($aPos) Then Return
 
     Local $iOldMonitor = $g_iCurrentScreenNumber
-    $g_iCurrentScreenNumber = _GetMonitorAtPoint($aPos[0] + ($aPos[2] / 2), $aPos[1] + ($aPos[3] / 2))
-
-    If $iOldMonitor <> $g_iCurrentScreenNumber Then
+    Local $iNewMonitor = _GetMonitorAtPoint($aPos[0] + ($aPos[2] / 2), $aPos[1] + ($aPos[3] / 2))
+    
+    ; Nur aktualisieren wenn sich der Monitor wirklich geändert hat
+    If $iNewMonitor <> $iOldMonitor And $iNewMonitor > 0 Then
+        $g_iCurrentScreenNumber = $iNewMonitor
         _UpdateMonitorInfo()
-        _UpdateStatus("Gewechselt zu Monitor " & $g_iCurrentScreenNumber, 0x0080FF)
+        
+        ; Zeige visuelle Position und Windows Display-Nummer in der Statusmeldung
+        Local $iVisualIndex = _GetVisualMonitorIndex($g_iCurrentScreenNumber)
+        Local $iActualDisplay = _GetActualDisplayNumber($g_iCurrentScreenNumber)
+        
+        Local $sMonitorText = "Monitor " & $iVisualIndex
+        If $iActualDisplay <> $g_iCurrentScreenNumber Then
+            $sMonitorText &= " (Display " & $iActualDisplay & ")"
+        EndIf
+        
+        _UpdateStatus("Gewechselt zu " & $sMonitorText, 0x0080FF)
     EndIf
 EndFunc
 
@@ -267,6 +311,30 @@ Func _HotkeyRecoverWindow()
     _RecoverLostWindow($g_hMainGUI)
     _UpdateMonitorInfo()
     _UpdateStatus("GUI wiederhergestellt", 0x00FF00)
+EndFunc
+
+; Schneller Monitor-Wechsel ohne Animation (für Classic Mode)
+Func _FastMoveToMonitor($hWindow, $iTargetMonitor)
+    If $iTargetMonitor < 1 Or $iTargetMonitor > $g_aMonitors[0][0] Then
+        _LogWarning("Ungültiger Ziel-Monitor in _FastMoveToMonitor: " & $iTargetMonitor)
+        Return False
+    EndIf
+    
+    Local $aWindowPos = WinGetPos($hWindow)
+    If Not IsArray($aWindowPos) Then Return False
+    
+    ; Zentriere auf Ziel-Monitor
+    Local $iCenterX = $g_aMonitors[$iTargetMonitor][2] + ($g_aMonitors[$iTargetMonitor][0] - $aWindowPos[2]) / 2
+    Local $iCenterY = $g_aMonitors[$iTargetMonitor][3] + ($g_aMonitors[$iTargetMonitor][1] - $aWindowPos[3]) / 2
+    
+    WinMove($hWindow, "", $iCenterX, $iCenterY)
+    
+    $g_iCurrentScreenNumber = $iTargetMonitor
+    $g_bWindowIsOut = False
+    $g_sWindowIsAt = $POS_CENTER
+    
+    _UpdateStatus("Schneller Wechsel zu Monitor " & $iTargetMonitor, 0x0080FF)
+    Return True
 EndFunc
 
 ; Zeigt die GUI an
@@ -430,4 +498,194 @@ EndFunc
 ; Aktiviert Auto-Slide-In
 Func _EnableAutoSlideIn()
     AdlibRegister("_CheckAutoSlideIn", 250)
+EndFunc
+
+; ==========================================
+; Neue Slider-Modi Implementierung
+; ==========================================
+
+; Standard Slide Mode (Original-Verhalten)
+Func _StandardSlideLeft()
+    Local $iNextMonitor = _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_LEFT)
+    If $iNextMonitor > 0 Then
+        _MoveToNextMonitor($g_hMainGUI, $POS_LEFT)
+    Else
+        If $g_bWindowIsOut And $g_sWindowIsAt = $POS_LEFT Then
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_IN)
+        Else
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_OUT)
+        EndIf
+    EndIf
+EndFunc
+
+Func _StandardSlideRight()
+    Local $iNextMonitor = _HasAdjacentMonitor($g_iCurrentScreenNumber, $POS_RIGHT)
+    If $iNextMonitor > 0 Then
+        _MoveToNextMonitor($g_hMainGUI, $POS_RIGHT)
+    Else
+        If $g_bWindowIsOut And $g_sWindowIsAt = $POS_RIGHT Then
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_IN)
+        Else
+            _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_OUT)
+        EndIf
+    EndIf
+EndFunc
+
+; Classic Slide Mode (2-Klick System)
+Func _ClassicSlideLeft()
+    ; 1. Prüfe ob bereits links ausgefahren
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_LEFT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_IN)
+        Return
+    EndIf
+    
+    ; 2. Prüfe ob linker Monitor existiert (physisch)
+    Local $iLeftMonitor = _GetPhysicalLeftMonitor($g_iCurrentScreenNumber)
+    
+    If $iLeftMonitor > 0 Then
+        ; Wechsle zum linken Monitor (ohne Animation)
+        _FastMoveToMonitor($g_hMainGUI, $iLeftMonitor)
+    Else
+        ; Kein linker Monitor -> Slide Out
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_OUT)
+    EndIf
+EndFunc
+
+Func _ClassicSlideRight()
+    ; 1. Prüfe ob bereits rechts ausgefahren
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_RIGHT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_IN)
+        Return
+    EndIf
+    
+    ; 2. Prüfe ob rechter Monitor existiert (physisch)
+    Local $iRightMonitor = _GetPhysicalRightMonitor($g_iCurrentScreenNumber)
+    
+    If $iRightMonitor > 0 Then
+        ; Wechsle zum rechten Monitor (ohne Animation)
+        _FastMoveToMonitor($g_hMainGUI, $iRightMonitor)
+    Else
+        ; Kein rechter Monitor -> Slide Out
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_OUT)
+    EndIf
+EndFunc
+
+; Direct Slide Mode (Ignoriert Nachbarn)
+Func _DirectSlideLeft()
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_LEFT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_IN)
+    Else
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_OUT)
+    EndIf
+EndFunc
+
+Func _DirectSlideRight()
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_RIGHT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_IN)
+    Else
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_OUT)
+    EndIf
+EndFunc
+
+; Continuous Slide Mode (Kontinuierliche Fahrt bis zum Rand)
+Func _ContinuousSlideLeft()
+    ; Wenn bereits ausgefahren → Slide IN
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_LEFT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_LEFT, $ANIM_IN)
+        Return
+    EndIf
+    
+    ; Finde den Monitor ganz links (ohne weiteren linken Nachbarn)
+    Local $iTargetMonitor = $g_iCurrentScreenNumber
+    Local $iSteps = 0
+    
+    ; Fahre kontinuierlich nach links bis kein weiterer Monitor
+    While True
+        Local $iLeftMonitor = _GetPhysicalLeftMonitor($iTargetMonitor)
+        If $iLeftMonitor <= 0 Then
+            ExitLoop ; Kein weiterer linker Monitor gefunden
+        EndIf
+        $iTargetMonitor = $iLeftMonitor
+        $iSteps += 1
+        
+        ; Sicherheit: Max 10 Schritte
+        If $iSteps > 10 Then
+            ExitLoop
+        EndIf
+    WEnd
+    
+    ; Animierte Fahrt zum Ziel-Monitor
+    If $iTargetMonitor <> $g_iCurrentScreenNumber Then
+        _AnimatedMoveToMonitor($g_hMainGUI, $iTargetMonitor, "LEFT")
+    EndIf
+    
+    ; Slide OUT am linken Rand
+    _SlideWindow($g_hMainGUI, $iTargetMonitor, $POS_LEFT, $ANIM_OUT)
+EndFunc
+
+Func _ContinuousSlideRight()
+    ; Wenn bereits ausgefahren → Slide IN
+    If $g_bWindowIsOut And $g_sWindowIsAt = $POS_RIGHT Then
+        _SlideWindow($g_hMainGUI, $g_iCurrentScreenNumber, $POS_RIGHT, $ANIM_IN)
+        Return
+    EndIf
+    
+    ; Finde den Monitor ganz rechts
+    Local $iTargetMonitor = $g_iCurrentScreenNumber
+    Local $iSteps = 0
+    
+    While True
+        Local $iRightMonitor = _GetPhysicalRightMonitor($iTargetMonitor)
+        If $iRightMonitor <= 0 Then
+            ExitLoop
+        EndIf
+        $iTargetMonitor = $iRightMonitor
+        $iSteps += 1
+        
+        If $iSteps > 10 Then
+            ExitLoop
+        EndIf
+    WEnd
+    
+    ; Animierte Fahrt zum Ziel-Monitor
+    If $iTargetMonitor <> $g_iCurrentScreenNumber Then
+        _AnimatedMoveToMonitor($g_hMainGUI, $iTargetMonitor, "RIGHT")
+    EndIf
+    
+    ; Slide OUT am rechten Rand
+    _SlideWindow($g_hMainGUI, $iTargetMonitor, $POS_RIGHT, $ANIM_OUT)
+EndFunc
+
+; Animierte Fahrt zwischen Monitoren
+Func _AnimatedMoveToMonitor($hWindow, $iTargetMonitor, $sDirection)
+    Local $aStartPos = WinGetPos($hWindow)
+    If Not IsArray($aStartPos) Then Return
+    
+    ; Ziel-Position berechnen
+    Local $iTargetX = $g_aMonitors[$iTargetMonitor][2] + ($g_aMonitors[$iTargetMonitor][0] - $aStartPos[2]) / 2
+    Local $iTargetY = $g_aMonitors[$iTargetMonitor][3] + ($g_aMonitors[$iTargetMonitor][1] - $aStartPos[3]) / 2
+    
+    ; Animation (20 Schritte)
+    Local $iSteps = 20
+    Local $iStepX = ($iTargetX - $aStartPos[0]) / $iSteps
+    Local $iStepY = ($iTargetY - $aStartPos[1]) / $iSteps
+    
+    For $i = 1 To $iSteps
+        Local $iCurrentX = $aStartPos[0] + ($iStepX * $i)
+        Local $iCurrentY = $aStartPos[1] + ($iStepY * $i)
+        WinMove($hWindow, "", $iCurrentX, $iCurrentY)
+        
+        ; Monitor-Update während Fahrt
+        Local $iCurrentMonitor = _GetMonitorAtPoint($iCurrentX + $aStartPos[2]/2, $iCurrentY + $aStartPos[3]/2)
+        If $iCurrentMonitor <> $g_iCurrentScreenNumber And $iCurrentMonitor > 0 Then
+            $g_iCurrentScreenNumber = $iCurrentMonitor
+        EndIf
+        
+        Sleep(30) ; Animationsgeschwindigkeit
+    Next
+    
+    ; Finale Position und Status-Update
+    $g_iCurrentScreenNumber = $iTargetMonitor
+    $g_bWindowIsOut = False
+    $g_sWindowIsAt = $POS_CENTER
 EndFunc

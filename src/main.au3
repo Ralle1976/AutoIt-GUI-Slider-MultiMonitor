@@ -8,6 +8,7 @@
 
 #include <GUIConstantsEx.au3>
 #include <WindowsConstants.au3>
+#include <Misc.au3>
 #include "includes\GlobalVars.au3"
 #include "includes\Constants.au3"
 #include "modules\MonitorDetection.au3"
@@ -72,8 +73,34 @@ Func _Main()
                 $bAutoSlideIn = $aBehavior[$i][1]
             Case "AutoSlideInDelay"
                 $iAutoSlideInDelay = Int($aBehavior[$i][1])
+            Case "ClassicSliderMode"
+                $g_bClassicSliderMode = $aBehavior[$i][1]
+            Case "DirectSlideMode"
+                $g_bDirectSlideMode = $aBehavior[$i][1]
+            Case "ContinuousSlideMode"
+                $g_bContinuousSlideMode = $aBehavior[$i][1]
         EndSwitch
     Next
+    
+    ; Modus-Validierung: Nur ein Modus kann aktiv sein
+    Local $iActiveModes = 0
+    If $g_bClassicSliderMode Then $iActiveModes += 1
+    If $g_bDirectSlideMode Then $iActiveModes += 1
+    If $g_bContinuousSlideMode Then $iActiveModes += 1
+    
+    If $iActiveModes > 1 Then
+        _LogWarning("Mehrere Slider-Modi aktiviert! Verwende Standard-Modus.")
+        $g_bClassicSliderMode = False
+        $g_bDirectSlideMode = False
+        $g_bContinuousSlideMode = False
+    EndIf
+    
+    ; Modus-Logging
+    Local $sActiveMode = "Standard"
+    If $g_bClassicSliderMode Then $sActiveMode = "Classic"
+    If $g_bDirectSlideMode Then $sActiveMode = "Direct"
+    If $g_bContinuousSlideMode Then $sActiveMode = "Continuous"
+    _LogInfo("Slider-Modus: " & $sActiveMode)
     
     If $bAutoSlideIn Then
         AdlibRegister("_CheckAutoSlideIn", $iAutoSlideInDelay)
@@ -127,17 +154,17 @@ Func _InitializeSystem()
 
     _LogInfo("=== System-Initialisierung ===")
 
-    ; Lade Konfiguration
-    If Not _LoadConfig() Then
-        _LogError("Fehler beim Laden der Konfiguration!")
-        Return False
-    EndIf
-
-    ; Erkenne Monitore
+    ; Erkenne Monitore ZUERST
     Local $aMonitors = _GetMonitors()
     If @error Or $aMonitors[0][0] = 0 Then
         _LogError("Keine Monitore erkannt!")
         MsgBox(16, "Fehler", "Keine Monitore erkannt!")
+        Return False
+    EndIf
+
+    ; Lade Konfiguration NACH Monitor-Erkennung
+    If Not _LoadConfig() Then
+        _LogError("Fehler beim Laden der Konfiguration!")
         Return False
     EndIf
 
@@ -148,11 +175,12 @@ Func _InitializeSystem()
     ; Monitor-Details loggen
     _LogMonitorInfo()
 
-    ; Setze initialen Monitor
-    If $g_iLastMonitor > $aMonitors[0][0] Then
+    ; Validiere und setze initialen Monitor
+    If $g_iCurrentScreenNumber < 1 Or $g_iCurrentScreenNumber > $aMonitors[0][0] Then
+        _LogWarning("Ungültiger gespeicherter Monitor-Index: " & $g_iCurrentScreenNumber & " - verwende Monitor 1")
+        $g_iCurrentScreenNumber = 1
         $g_iLastMonitor = 1
     EndIf
-    $g_iCurrentScreenNumber = $g_iLastMonitor
 
     ; Visualisierung initialisieren
     If Not _InitVisualization() Then
@@ -187,13 +215,13 @@ Func _CreateTrayMenu()
     TrayItemSetOnEvent($idTrayAbout, "_TrayAbout")
     TrayItemSetOnEvent($idTrayExit, "_TrayExit")
 
-    ; Tray-Icon Tooltip mit korrekter Display-Nummer
-    Local $sTooltip = "GUI Slider - Monitor " & $g_iCurrentScreenNumber
-    If UBound($g_aMonitorDetails) > $g_iCurrentScreenNumber And UBound($g_aMonitorDetails, 2) >= 6 Then
-        Local $iDisplayNum = _ExtractDisplayNumber($g_aMonitorDetails[$g_iCurrentScreenNumber][0])
-        If $iDisplayNum <> 999 Then
-            $sTooltip = "GUI Slider - Display " & $iDisplayNum
-        EndIf
+    ; Tray-Icon Tooltip mit visueller Position und Display-Nummer
+    Local $iVisualIndex = _GetVisualMonitorIndex($g_iCurrentScreenNumber)
+    Local $iActualDisplay = _GetActualDisplayNumber($g_iCurrentScreenNumber)
+    
+    Local $sTooltip = "GUI Slider - Monitor " & $iVisualIndex
+    If $iActualDisplay <> $g_iCurrentScreenNumber Then
+        $sTooltip &= " (Display " & $iActualDisplay & ")"
     EndIf
     TraySetToolTip($sTooltip)
 
@@ -245,26 +273,6 @@ EndFunc
 
 Func _TrayExit()
     _OnClose()
-EndFunc
-
-; ==========================================
-; Singleton-Funktion
-; ==========================================
-Func _Singleton($sOccurrenceName, $iFlag = 0)
-    Local Const $ERROR_ALREADY_EXISTS = 183
-    Local $hMutex = DllCall("kernel32.dll", "handle", "CreateMutexW", _
-                            "struct*", 0, "bool", 1, "wstr", $sOccurrenceName)
-
-    If @error Then Return SetError(@error, 0, 0)
-
-    Local $iError = DllCall("kernel32.dll", "dword", "GetLastError")[0]
-    If $iError = $ERROR_ALREADY_EXISTS Then
-        DllCall("kernel32.dll", "bool", "CloseHandle", "handle", $hMutex[0])
-        If $iFlag Then Exit -1
-        Return 0
-    EndIf
-
-    Return $hMutex[0]
 EndFunc
 
 ; ==========================================

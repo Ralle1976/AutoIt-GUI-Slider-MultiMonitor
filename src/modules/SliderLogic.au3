@@ -32,13 +32,19 @@ Func _SlideWindow($hWindow, $iScreenNum = Default, $sSide = Default, $sInOrOut =
         $g_iCurrentScreenNumber = $iScreenNum
         $g_sSwitchSide = $sSide
         $g_bWindowIsOut = ($sInOrOut = $ANIM_OUT)
-        $g_sWindowIsAt = $sSide
+        If $sInOrOut = $ANIM_OUT Then
+            $g_sWindowIsAt = $sSide
+        Else
+            $g_sWindowIsAt = $POS_CENTER  ; Nach Slide IN ist das Fenster zentriert
+        EndIf
+        
+        _LogInfo("Status aktualisiert: WindowIsOut=" & $g_bWindowIsOut & ", WindowIsAt=" & $g_sWindowIsAt)
     EndIf
     
     Return $bResult
 EndFunc
 
-; Interne Funktion für die Animation
+; Interne Funktion für die Animation (basierend auf Original-Code)
 Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
     Local $aWindowPos = WinGetPos($hWindow)
     If Not IsArray($aWindowPos) Then
@@ -55,102 +61,117 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
         Return False
     EndIf
     
-    Local $iMovePixelPerStep = Round($aWindowPos[2] / $g_iSlideSteps, 0)
-    Local $iStartX, $iStartY, $iEndX, $iEndY
-    
     ; Monitor-Koordinaten für Logging
     _LogDebug("Monitor " & $iScreenNum & " - Position: X=" & $g_aMonitors[$iScreenNum][2] & ", Y=" & $g_aMonitors[$iScreenNum][3] & _
              ", Breite=" & $g_aMonitors[$iScreenNum][0] & ", Höhe=" & $g_aMonitors[$iScreenNum][1])
+    _LogDebug("Fenster - Position: X=" & $aWindowPos[0] & ", Y=" & $aWindowPos[1] & _
+             ", Breite=" & $aWindowPos[2] & ", Höhe=" & $aWindowPos[3])
     
-    ; Berechne Start- und Endposition basierend auf Richtung
+    ; Berechne wie viel vom Fenster sichtbar bleiben soll (8 Pixel)
+    Local $iVisiblePixels = 8
+    
+    ; Animation in 10 Schritten
     Switch $sSide
-        Case $POS_LEFT
-            $iStartY = $aWindowPos[1]
-            If $sInOrOut = $ANIM_OUT Then
-                $iStartX = $aWindowPos[0]
-                $iEndX = $g_aMonitors[$iScreenNum][2] - $aWindowPos[2] + 8  ; 8 Pixel sichtbar
+        Case $POS_LEFT, "Left"
+            If $sInOrOut = $ANIM_OUT Or $sInOrOut = "Out" Then
+                ; SLIDE OUT: Fenster fährt nach links heraus (8 Pixel bleiben sichtbar)
+                Local $iFinalX = $g_aMonitors[$iScreenNum][2] - $aWindowPos[2] + $iVisiblePixels
+                Local $iStepSize = ($aWindowPos[0] - $iFinalX) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewX = $aWindowPos[0] - ($iStepSize * $i)
+                    WinMove($hWindow, "", $iNewX, $aWindowPos[1])
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             Else
-                $iStartX = $g_aMonitors[$iScreenNum][2] - $aWindowPos[2] + 8
-                $iEndX = $g_aMonitors[$iScreenNum][2] + 10  ; Etwas innerhalb des Monitors
+                ; SLIDE IN: Fenster fährt von ausgefahrener Position zurück in den Monitor
+                Local $iFinalX = $g_aMonitors[$iScreenNum][2] + 50  ; 50 Pixel vom linken Rand
+                Local $iStepSize = ($iFinalX - $aWindowPos[0]) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewX = $aWindowPos[0] + ($iStepSize * $i)
+                    WinMove($hWindow, "", $iNewX, $aWindowPos[1])
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             EndIf
             
-        Case $POS_RIGHT
-            $iStartY = $aWindowPos[1]
-            If $sInOrOut = $ANIM_OUT Then
-                $iStartX = $aWindowPos[0]
-                $iEndX = $g_aMonitors[$iScreenNum][2] + $g_aMonitors[$iScreenNum][0] - 8
+        Case $POS_RIGHT, "Right"
+            If $sInOrOut = $ANIM_OUT Or $sInOrOut = "Out" Then
+                ; SLIDE OUT: Fenster fährt nach rechts heraus (8 Pixel bleiben sichtbar)
+                Local $iFinalX = $g_aMonitors[$iScreenNum][2] + $g_aMonitors[$iScreenNum][0] - $iVisiblePixels
+                Local $iStepSize = ($iFinalX - $aWindowPos[0]) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewX = $aWindowPos[0] + ($iStepSize * $i)
+                    WinMove($hWindow, "", $iNewX, $aWindowPos[1])
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             Else
-                $iStartX = $g_aMonitors[$iScreenNum][2] + $g_aMonitors[$iScreenNum][0] - 8
-                $iEndX = $g_aMonitors[$iScreenNum][2] + $g_aMonitors[$iScreenNum][0] - $aWindowPos[2] - 10
+                ; SLIDE IN: Fenster fährt von ausgefahrener Position zurück in den Monitor
+                Local $iFinalX = $g_aMonitors[$iScreenNum][2] + $g_aMonitors[$iScreenNum][0] - $aWindowPos[2] - 50  ; 50 Pixel vom rechten Rand
+                Local $iStepSize = ($aWindowPos[0] - $iFinalX) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewX = $aWindowPos[0] - ($iStepSize * $i)
+                    WinMove($hWindow, "", $iNewX, $aWindowPos[1])
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             EndIf
             
-        Case $POS_TOP
-            $iStartX = $aWindowPos[0]
-            If $sInOrOut = $ANIM_OUT Then
-                $iStartY = $aWindowPos[1]
-                $iEndY = $g_aMonitors[$iScreenNum][3] - $aWindowPos[3] + 8
+        Case $POS_TOP, "Top"
+            If $sInOrOut = $ANIM_OUT Or $sInOrOut = "Out" Then
+                ; SLIDE OUT: Fenster fährt nach oben heraus (8 Pixel bleiben sichtbar)
+                Local $iFinalY = $g_aMonitors[$iScreenNum][3] - $aWindowPos[3] + $iVisiblePixels
+                Local $iStepSize = ($aWindowPos[1] - $iFinalY) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewY = $aWindowPos[1] - ($iStepSize * $i)
+                    WinMove($hWindow, "", $aWindowPos[0], $iNewY)
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             Else
-                $iStartY = $g_aMonitors[$iScreenNum][3] - $aWindowPos[3] + 8
-                $iEndY = $g_aMonitors[$iScreenNum][3] + 10
+                ; SLIDE IN: Fenster fährt von ausgefahrener Position zurück in den Monitor
+                Local $iFinalY = $g_aMonitors[$iScreenNum][3] + 50  ; 50 Pixel vom oberen Rand
+                Local $iStepSize = ($iFinalY - $aWindowPos[1]) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewY = $aWindowPos[1] + ($iStepSize * $i)
+                    WinMove($hWindow, "", $aWindowPos[0], $iNewY)
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             EndIf
             
-        Case $POS_BOTTOM
-            $iStartX = $aWindowPos[0]
-            If $sInOrOut = $ANIM_OUT Then
-                $iStartY = $aWindowPos[1]
-                $iEndY = $g_aMonitors[$iScreenNum][3] + $g_aMonitors[$iScreenNum][1] - 8
+        Case $POS_BOTTOM, "Bottom"
+            If $sInOrOut = $ANIM_OUT Or $sInOrOut = "Out" Then
+                ; SLIDE OUT: Fenster fährt nach unten heraus (8 Pixel bleiben sichtbar)
+                Local $iFinalY = $g_aMonitors[$iScreenNum][3] + $g_aMonitors[$iScreenNum][1] - $iVisiblePixels
+                Local $iStepSize = ($iFinalY - $aWindowPos[1]) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewY = $aWindowPos[1] + ($iStepSize * $i)
+                    WinMove($hWindow, "", $aWindowPos[0], $iNewY)
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             Else
-                $iStartY = $g_aMonitors[$iScreenNum][3] + $g_aMonitors[$iScreenNum][1] - 8
-                $iEndY = $g_aMonitors[$iScreenNum][3] + $g_aMonitors[$iScreenNum][1] - $aWindowPos[3] - 10
+                ; SLIDE IN: Fenster fährt von ausgefahrener Position zurück in den Monitor
+                Local $iFinalY = $g_aMonitors[$iScreenNum][3] + $g_aMonitors[$iScreenNum][1] - $aWindowPos[3] - 50  ; 50 Pixel vom unteren Rand
+                Local $iStepSize = ($aWindowPos[1] - $iFinalY) / 10
+                
+                For $i = 0 To 10
+                    Local $iNewY = $aWindowPos[1] - ($iStepSize * $i)
+                    WinMove($hWindow, "", $aWindowPos[0], $iNewY)
+                    _UpdateVisualization()
+                    Sleep(20)
+                Next
             EndIf
     EndSwitch
-    
-    _LogDebug("Animation: Start (" & $iStartX & ", " & $iStartY & ") -> Ende (" & $iEndX & ", " & $iEndY & ")")
-    
-    ; Sicherheitsprüfung: Verhindere, dass Fenster komplett außerhalb des sichtbaren Bereichs landet
-    Local $iMinVisible = 8  ; Mindestens 8 Pixel müssen sichtbar bleiben
-    
-    ; Berechne die Grenzen des virtuellen Desktops (alle Monitore)
-    Local $iVirtualLeft = 999999, $iVirtualTop = 999999
-    Local $iVirtualRight = -999999, $iVirtualBottom = -999999
-    
-    For $i = 1 To $g_aMonitors[0][0]
-        If $g_aMonitors[$i][2] < $iVirtualLeft Then $iVirtualLeft = $g_aMonitors[$i][2]
-        If $g_aMonitors[$i][3] < $iVirtualTop Then $iVirtualTop = $g_aMonitors[$i][3]
-        If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iVirtualRight Then $iVirtualRight = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
-        If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iVirtualBottom Then $iVirtualBottom = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
-    Next
-    
-    ; Prüfe ob Endposition gültig ist (berücksichtige alle Monitore)
-    If $iEndX + $aWindowPos[2] < $iVirtualLeft + $iMinVisible Then
-        _LogWarning("Endposition X zu weit links korrigiert")
-        $iEndX = $iVirtualLeft + $iMinVisible - $aWindowPos[2]
-    ElseIf $iEndX > $iVirtualRight - $iMinVisible Then
-        _LogWarning("Endposition X zu weit rechts korrigiert")
-        $iEndX = $iVirtualRight - $iMinVisible
-    EndIf
-    
-    If $iEndY + $aWindowPos[3] < $iVirtualTop + $iMinVisible Then
-        _LogWarning("Endposition Y zu weit oben korrigiert")
-        $iEndY = $iVirtualTop + $iMinVisible - $aWindowPos[3]
-    ElseIf $iEndY > $iVirtualBottom - $iMinVisible Then
-        _LogWarning("Endposition Y zu weit unten korrigiert")
-        $iEndY = $iVirtualBottom - $iMinVisible
-    EndIf
-    
-    _LogDebug("Virtuelle Desktop-Grenzen: " & $iVirtualLeft & "," & $iVirtualTop & " bis " & $iVirtualRight & "," & $iVirtualBottom)
-    
-    ; Führe Animation aus
-    Local $iStepX = ($iEndX - $iStartX) / $g_iSlideSteps
-    Local $iStepY = ($iEndY - $iStartY) / $g_iSlideSteps
-    
-    For $i = 0 To $g_iSlideSteps
-        Local $iCurrentX = Round($iStartX + ($iStepX * $i))
-        Local $iCurrentY = Round($iStartY + ($iStepY * $i))
-        WinMove($hWindow, "", $iCurrentX, $iCurrentY)
-        _UpdateVisualization()  ; Visualisierung aktualisieren
-        Sleep($g_iAnimationSpeed)
-    Next
     
     _LogWindowPosition($hWindow, "Nach Animation")
     
@@ -208,21 +229,76 @@ Func _MoveToNextMonitor($hWindow, $sDirection)
     Local $aPos = WinGetPos($hWindow)
     If Not IsArray($aPos) Then Return False
     
-    Local $iCurrentMonitor = _GetMonitorAtPoint($aPos[0], $aPos[1])
-    Local $iNextMonitor = _HasAdjacentMonitor($iCurrentMonitor, $sDirection)
+    Local $iCurrentMonitor = $g_iCurrentScreenNumber
+    Local $iNextMonitor = 0
+    
+    ; Verwende physisches Mapping für Links/Rechts-Navigation
+    Switch $sDirection
+        Case $POS_LEFT
+            $iNextMonitor = _GetPhysicalLeftMonitor($iCurrentMonitor)
+        Case $POS_RIGHT
+            $iNextMonitor = _GetPhysicalRightMonitor($iCurrentMonitor)
+        Case Else
+            ; Für Top/Bottom verwende die alte Methode
+            $iNextMonitor = _HasAdjacentMonitor($iCurrentMonitor, $sDirection)
+    EndSwitch
     
     If $iNextMonitor > 0 Then
-        ; Slide out vom aktuellen Monitor
-        _SlideWindow($hWindow, $iCurrentMonitor, $sDirection, $ANIM_OUT)
+        _LogInfo("Wechsle von Monitor " & $iCurrentMonitor & " zu Monitor " & $iNextMonitor)
         
-        ; Positioniere auf dem neuen Monitor
-        Local $aPos = WinGetPos($hWindow)
-        Local $iNewX = $g_aMonitors[$iNextMonitor][2] + ($g_aMonitors[$iNextMonitor][0] - $aPos[2]) / 2
-        Local $iNewY = $g_aMonitors[$iNextMonitor][3] + ($g_aMonitors[$iNextMonitor][1] - $aPos[3]) / 2
+        ; Positioniere GUI auf dem neuen Monitor am gegenüberliegenden Rand
+        Local $iNewX = $aPos[0]
+        Local $iNewY = $aPos[1]
+        
+        Switch $sDirection
+            Case $POS_LEFT
+                ; Vom linken Rand des aktuellen zum rechten Rand des nächsten Monitors
+                $iNewX = $g_aMonitors[$iNextMonitor][2] + $g_aMonitors[$iNextMonitor][0] - $aPos[2]
+                
+            Case $POS_RIGHT  
+                ; Vom rechten Rand des aktuellen zum linken Rand des nächsten Monitors
+                $iNewX = $g_aMonitors[$iNextMonitor][2]
+                
+            Case $POS_TOP
+                ; Vom oberen Rand des aktuellen zum unteren Rand des nächsten Monitors
+                $iNewY = $g_aMonitors[$iNextMonitor][3] + $g_aMonitors[$iNextMonitor][1] - $aPos[3]
+                
+            Case $POS_BOTTOM
+                ; Vom unteren Rand des aktuellen zum oberen Rand des nächsten Monitors
+                $iNewY = $g_aMonitors[$iNextMonitor][3]
+        EndSwitch
+        
+        ; Y-Position an neuen Monitor anpassen wenn nötig
+        ; Behalte relative Position innerhalb des Monitor-Bereichs bei
+        Local $iCurrentMonitorHeight = $g_aMonitors[$iCurrentMonitor][1]
+        Local $iNextMonitorHeight = $g_aMonitors[$iNextMonitor][1]
+        Local $iCurrentRelativeY = ($aPos[1] - $g_aMonitors[$iCurrentMonitor][3]) / $iCurrentMonitorHeight
+        
+        ; Setze Y-Position relativ zum neuen Monitor (aber nur wenn horizontal gewechselt wird)
+        If $sDirection = $POS_LEFT Or $sDirection = $POS_RIGHT Then
+            $iNewY = $g_aMonitors[$iNextMonitor][3] + ($iCurrentRelativeY * $iNextMonitorHeight)
+            ; Stelle sicher, dass GUI vollständig auf dem Monitor ist
+            If $iNewY + $aPos[3] > $g_aMonitors[$iNextMonitor][3] + $iNextMonitorHeight Then
+                $iNewY = $g_aMonitors[$iNextMonitor][3] + $iNextMonitorHeight - $aPos[3]
+            EndIf
+            If $iNewY < $g_aMonitors[$iNextMonitor][3] Then
+                $iNewY = $g_aMonitors[$iNextMonitor][3]
+            EndIf
+        EndIf
+        
+        _LogInfo("Bewege GUI von (" & $aPos[0] & "," & $aPos[1] & ") zu (" & $iNewX & "," & $iNewY & ")")
+        
+        ; Bewege GUI zum neuen Monitor
         WinMove($hWindow, "", $iNewX, $iNewY)
         
         ; Update globale Variablen
         $g_iCurrentScreenNumber = $iNextMonitor
+        $g_bWindowIsOut = False
+        $g_sWindowIsAt = $POS_CENTER
+        
+        ; Optional: Slide-In Animation auf dem neuen Monitor
+        ; Kommentar entfernen für automatisches herausfahren auf dem neuen Monitor
+        ; _SlideWindow($hWindow, $iNextMonitor, $sDirection, $ANIM_OUT)
         
         Return True
     EndIf
@@ -239,7 +315,7 @@ Func _CenterOnMonitor($hWindow, $iMonitor = Default)
         _LogWarning("Ungültiger Monitor-Index in _CenterOnMonitor: " & $iMonitor)
         ; Fallback auf primären Monitor
         $iMonitor = _GetPrimaryMonitor()
-        If $iMonitor = 0 Then $iMonitor = 1  ; Letzter Fallback
+        If $iMonitor < 1 Then $iMonitor = 1  ; Letzter Fallback
         _LogInfo("Verwende Monitor " & $iMonitor & " als Fallback")
     EndIf
     
@@ -350,10 +426,10 @@ Func _RecoverLostWindow($hWindow)
         If $iTargetMonitor < 1 Or $iTargetMonitor > $g_aMonitors[0][0] Then
             ; Finde den Monitor, auf dem das Fenster aktuell ist
             $iTargetMonitor = _GetMonitorAtPoint($aPos[0] + $aPos[2]/2, $aPos[1] + $aPos[3]/2)
-            If $iTargetMonitor = 0 Then
+            If $iTargetMonitor < 1 Then
                 ; Fallback auf primären Monitor
                 $iTargetMonitor = _GetPrimaryMonitor()
-                If $iTargetMonitor = 0 Then
+                If $iTargetMonitor < 1 Then
                     ; Letzter Fallback auf Monitor 1
                     $iTargetMonitor = 1
                 EndIf

@@ -1,129 +1,187 @@
-# GUI-Slider Multi-Monitor
+# GUI-Slider-MultiMonitor UDF
 
-Ein fortschrittliches AutoIt-Tool zur Verwaltung von GUI-Fenstern in Multi-Monitor-Umgebungen mit Slide-Animationen.
+Eine AutoIt UDF (User Defined Function) für Multi-Monitor GUI Slider-Systeme.
 
-## 🆕 Aktuelle Verbesserungen
+## 🚀 Features
 
-### 1. **Besserer Git MCP-Server installiert**
-- **Neuer Server**: `@cyanheads/git-mcp-server` 
-- **Vorteile**: 
-  - Arbeitet direkt mit lokalem Git CLI
-  - Pusht Dateien als Ganzes (nicht Zeile für Zeile)
-  - Unterstützt alle Git-Operationen (clone, commit, push, pull, branch, etc.)
-- **Wichtig**: Bitte die Anwendung neu starten, damit der neue MCP-Server aktiv wird!
+- **4 Slider-Modi**: Standard, Classic, Direct, Continuous
+- **Multi-Monitor**: Unterstützt 1-8 Monitore in beliebiger Anordnung
+- **Auto-Slide-In**: Automatisches Einfahren bei Mouse-Over
+- **Einfache Integration**: Ein `#include` und wenige Funktionsaufrufe
+- **UDF-Standard**: Vollständig dokumentierte API
 
-### 2. **GUI-Verlust-Bug behoben**
-- Problem: GUI konnte aus dem sichtbaren Bereich verschwinden
-- Lösung: 
-  - Virtuelle Desktop-Grenzen werden jetzt korrekt berechnet (alle Monitore)
-  - Sicherheitsprüfungen verhindern, dass die GUI außerhalb landet
-  - Neuer Recovery-Hotkey: `Alt+End` bringt verlorene GUI zurück
+## 📦 Installation
 
-### 3. **Erweiterte Monitor-Visualisierung**
-- Live-Visualisierung aller Monitore mit GDI+
-- Zeigt GUI-Position in Echtzeit
-- Animationen werden visuell dargestellt
-- Fenster rechts unten positioniert
+1. **Download**: `SliderSystem.au3` herunterladen
+2. **Include**: In Ihr AutoIt-Projekt einbinden:
+   ```autoit
+   #include "SliderSystem.au3"
+   ```
 
-### 4. **Umfassendes Logging-System**
-- Detaillierte Logs aller Operationen
-- Log-Rotation bei 10MB
-- Verschiedene Log-Level (DEBUG, INFO, WARNING, ERROR)
-- Logs im `src/logs/` Verzeichnis
+## ⚡ Schnellstart
 
-## 📁 Projektstruktur
+```autoit
+#include <GUIConstantsEx.au3>
+#include "SliderSystem.au3"
+
+; Ihr GUI erstellen
+Local $hGUI = GUICreate("Mein Programm", 400, 300)
+Local $btnSlideLeft = GUICtrlCreateButton("← Links", 10, 10, 60, 30)
+GUISetState(@SW_SHOW, $hGUI)
+
+; Slider-System aktivieren
+_SliderSystem_Init($hGUI)
+_SliderSystem_SetMode($SLIDER_MODE_CONTINUOUS)
+_SliderSystem_EnableAutoSlideIn()
+
+; Event-Loop
+While 1
+    Local $msg = GUIGetMsg()
+    
+    Switch $msg
+        Case $GUI_EVENT_CLOSE
+            ExitLoop
+        Case $btnSlideLeft
+            _SliderSystem_SlideLeft()
+    EndSwitch
+    
+    Sleep(10)
+WEnd
+
+; Cleanup
+_SliderSystem_Cleanup()
+```
+
+## 🎛️ Slider-Modi
+
+### **Continuous Mode** (EMPFOHLEN)
+```autoit
+_SliderSystem_SetMode($SLIDER_MODE_CONTINUOUS)
+```
+- Kontinuierliche Fahrt bis zum äußersten Monitor
+- Slide OUT am Rand des erreichten Monitors
+- Sehr intuitiv für Multi-Monitor-Setups
+
+### **Direct Mode**
+```autoit
+_SliderSystem_SetMode($SLIDER_MODE_DIRECT)
+```
+- Ignoriert Nachbar-Monitore
+- Fährt sofort am aktuellen Monitor raus
+
+### **Classic Mode**
+```autoit
+_SliderSystem_SetMode($SLIDER_MODE_CLASSIC)
+```
+- Zwei-Klick-System
+- 1. Klick = Monitor wechseln, 2. Klick = Slide OUT
+
+### **Standard Mode**
+```autoit
+_SliderSystem_SetMode($SLIDER_MODE_STANDARD)
+```
+- Original-Verhalten
+- Monitor-Wechsel bei Nachbarn, sonst Slide OUT
+
+## 📋 API-Referenz
+
+### Initialisierung
+- `_SliderSystem_Init($hGUI)` - Initialisiert das System für ein GUI
+- `_SliderSystem_Cleanup()` - Bereinigt das System
+
+### Konfiguration
+- `_SliderSystem_SetMode($sMode)` - Setzt den Slider-Modus
+- `_SliderSystem_EnableAutoSlideIn($bEnable, $iDelay)` - Auto-Slide-In aktivieren
+
+### Slide-Funktionen
+- `_SliderSystem_SlideLeft()` - Slide nach links
+- `_SliderSystem_SlideRight()` - Slide nach rechts
+- `_SliderSystem_SlideUp()` - Slide nach oben
+- `_SliderSystem_SlideDown()` - Slide nach unten
+
+### Info-Funktionen
+- `_SliderSystem_GetCurrentMonitor()` - Aktuelle Monitor-Nummer
+- `_SliderSystem_IsSlideOut()` - Prüft ob ausgefahren
+- `_SliderSystem_GetSlidePosition()` - Aktuelle Position
+- `_SliderSystem_GetMode()` - Aktueller Modus
+
+## 💡 Beispiele
+
+### Mit Hotkeys
+```autoit
+; Hotkeys registrieren
+HotKeySet("!{LEFT}", "_MySlideLeft")   ; Alt+Links
+HotKeySet("!{RIGHT}", "_MySlideRight") ; Alt+Rechts
+
+Func _MySlideLeft()
+    _SliderSystem_SlideLeft()
+EndFunc
+
+Func _MySlideRight()
+    _SliderSystem_SlideRight()
+EndFunc
+```
+
+### Mit Status-Updates
+```autoit
+; Status-Label in Ihrem GUI
+Local $lblStatus = GUICtrlCreateLabel("", 10, 250, 380, 20)
+
+; In Event-Loop aktualisieren
+Local $sStatus = "Monitor: " & _SliderSystem_GetCurrentMonitor() & " | "
+$sStatus &= "Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN")
+GUICtrlSetData($lblStatus, $sStatus)
+```
+
+## 🖥️ Multi-Monitor-Unterstützung
+
+- **1-8 Monitore** unterstützt
+- **Beliebige Anordnungen** (horizontal, vertikal, gemischt)
+- **Automatische Erkennung** der Monitor-Positionen
+- **Physisches Mapping** für korrekte Links/Rechts-Navigation
+
+## 📁 Datei-Struktur
 
 ```
 GUI-Slider-MultiMonitor/
-├── src/
-│   ├── main.au3                 # Hauptprogramm
-│   ├── includes/
-│   │   ├── GlobalVars.au3      # Globale Variablen
-│   │   └── Constants.au3       # Konstanten
-│   ├── modules/
-│   │   ├── ConfigManager.au3   # Konfigurationsverwaltung
-│   │   ├── GUIControl.au3      # GUI-Steuerung
-│   │   ├── Logging.au3         # Logging-System
-│   │   ├── MonitorDetection.au3 # Monitor-Erkennung
-│   │   ├── SliderLogic.au3     # Slide-Animationen (mit Bugfix)
-│   │   └── Visualization.au3   # Monitor-Visualisierung
-│   └── logs/                   # Log-Dateien
-├── config/
-│   └── default_config.ini      # Standard-Konfiguration
-├── backup/                     # Backup-Verzeichnis
-├── docs/                       # Dokumentation
-└── tests/                      # Test-Dateien
+├── SliderSystem.au3           # Haupt-UDF (das müssen Sie einbinden)
+├── examples/
+│   ├── simple-example.au3     # Einfaches Beispiel
+│   └── advanced-example.au3   # Erweiterte Funktionen
+├── docs/
+│   ├── README.md              # Diese Datei
+│   └── API_REFERENCE.md       # Detaillierte API-Dokumentation
+└── tests/
+    └── test-all-modes.au3     # Test-Suite
 ```
 
-## ⌨️ Hotkeys
+## 🧪 Testen
 
-| Hotkey | Funktion |
-|--------|----------|
-| `Alt + ←` | Slide nach links |
-| `Alt + →` | Slide nach rechts |
-| `Alt + ↑` | Slide nach oben |
-| `Alt + ↓` | Slide nach unten |
-| `Alt + Space` | Toggle Slide In/Out |
-| `Alt + Home` | GUI zentrieren |
-| **`Alt + End`** | **GUI wiederherstellen (NEU!)** |
+```autoit
+; Test-Beispiel ausführen
+examples\simple-example.au3
 
-## 🛠️ Installation
-
-1. AutoIt 3.3.16.1 oder höher installieren
-2. Repository klonen:
-   ```bash
-   git clone https://github.com/Ralle1976/AutoIt-GUI-Slider-MultiMonitor.git
-   ```
-3. `src/main.au3` mit AutoIt ausführen
-
-## 🔧 Konfiguration
-
-Die Konfiguration erfolgt über `config/default_config.ini`:
-
-```ini
-[Hotkeys]
-RecoverWindow=!{End}  ; Neuer Recovery-Hotkey
-
-[Animation]
-SlideSteps=15        ; Anzahl der Animationsschritte
-AnimationSpeed=10    ; Geschwindigkeit in ms
-
-[Logging]
-LogLevel=INFO        ; DEBUG, INFO, WARNING, ERROR
-EnableVisualization=1 ; Monitor-Visualisierung aktivieren
+; Alle Modi testen
+tests\test-all-modes.au3
 ```
 
-## 🐛 Bekannte Probleme (Behoben)
+## 🤝 Beitragen
 
-- ✅ **GUI verschwindet aus Monitor**: Behoben durch virtuelle Desktop-Berechnung
-- ✅ **GitHub MCP langsam**: Behoben durch neuen git-mcp-server
-- ✅ **Keine Visualisierung**: Behoben durch GDI+ Implementation
-
-## 📝 Entwickler-Hinweise
-
-### MCP-Server
-- Der neue `git-mcp-server` arbeitet direkt mit dem lokalen Git
-- Keine Zeile-für-Zeile Uploads mehr
-- Unterstützt alle Standard Git-Operationen
-
-### Sicherheit
-- Keine sensiblen Daten (Pfade, IPs, Passwörter) im Code
-- Alle Konfigurationen in INI-Dateien
-
-### Debugging
-- Aktiviere `LogLevel=DEBUG` für detaillierte Logs
-- Visualisierung zeigt Live-Positionen
-- Recovery-Funktion für verlorene GUIs
+1. Fork das Repository
+2. Erstelle einen Feature-Branch
+3. Committe deine Änderungen
+4. Erstelle einen Pull Request
 
 ## 📄 Lizenz
 
-Dieses Projekt ist Open Source. Details siehe LICENSE Datei.
+MIT License - siehe [LICENSE](LICENSE) Datei für Details.
 
-## 👥 Mitwirkende
+## 👤 Autor
 
-- Hauptentwickler: Ralle1976
-- MCP-Server Integration: Claude AI Assistant
+**Ralle1976** - [GitHub](https://github.com/Ralle1976)
 
----
+## 🔗 Links
 
-**Hinweis**: Nach Installation des neuen MCP-Servers bitte die Anwendung neu starten!
+- [GitHub Repository](https://github.com/Ralle1976/GUI-Slider-MultiMonitor)
+- [AutoIt Community](https://www.autoitscript.com/forum/)
+- [Beispiele und Tutorials](examples/)

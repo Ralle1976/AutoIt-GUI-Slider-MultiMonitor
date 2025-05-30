@@ -1,48 +1,41 @@
 ; GUI Slider MultiMonitor - Configuration File
-; This is an example configuration file
 ; Copy this file to 'settings.ini' and adjust the values
 
 [General]
-; Default position when sliding out (Top, Bottom, Left, Right)
-DefaultPosition=Top
-
-; Enable logging for debugging
-EnableLogging=False
-
-; Log level (DEBUG, INFO, WARN, ERROR)
-LogLevel=INFO
-
-; Tolerance for monitor alignment detection (pixels)
-MonitorTolerance=5
+LastPosition=Center
+LastMonitor=1
+LastWindowState=Normal
 
 [Animation]
-; Number of animation steps (higher = smoother)
-AnimationSteps=10
+AnimationSpeed=20
+SlideSteps=10
 
-; Delay between animation steps (milliseconds)
-AnimationDelay=20
+[GUI]
+DefaultWidth=400
+DefaultHeight=300
+MinWidth=200
+MinHeight=150
+MaxWidth=800
+MaxHeight=600
+
+[Behavior]
+StartOnPrimaryMonitor=1
+CenterOnStart=1
+AnimateOnStart=0
+SavePositionOnExit=1
+AutoSlideIn=1
+AutoSlideInDelay=250
+
+; Slider Modi (nur EINEN aktivieren):
+ClassicSliderMode=0       ; 0=Aus, 1=An (2-Klick System)
+DirectSlideMode=0         ; 0=Aus, 1=An (Ignoriert Nachbarn)
+ContinuousSlideMode=1     ; 0=Aus, 1=An (Kontinuierliche Fahrt - EMPFOHLEN)
 
 [Hotkeys]
-; Hotkey combinations
-; ^ = Ctrl, ! = Alt, + = Shift, # = Win
-SlideLeft=^{LEFT}
-SlideRight=^{RIGHT}
-SlideUp=^{UP}
-SlideDown=^{DOWN}
-Toggle=^{SPACE}
-
-[Window]
-; Window settings (automatically updated)
-; X=-1
-; Y=-1
-; Width=300
-; Height=400
-; Monitor=1
-; IsOut=False
-; Position=Top
-
-[Advanced]
-; Advanced settings
-; AutoHideDelay=5000
-; MagneticEdges=True
-; MagneticStrength=20
+SlideLeft=!{Left}
+SlideRight=!{Right}
+SlideUp=!{Up}
+SlideDown=!{Down}
+ToggleSlide=!{Space}
+CenterWindow=!{Home}
+RecoverWindow=!{End}

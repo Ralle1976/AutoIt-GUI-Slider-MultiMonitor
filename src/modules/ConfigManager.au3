@@ -17,6 +17,7 @@ Func _LoadConfig()
     ; Lade allgemeine Einstellungen
     $g_sLastPosition = IniRead($g_sConfigFile, "General", "LastPosition", $POS_CENTER)
     $g_iLastMonitor = Int(IniRead($g_sConfigFile, "General", "LastMonitor", 1))
+    $g_iCurrentScreenNumber = $g_iLastMonitor  ; Setze aktuellen Monitor auf letzten bekannten Monitor
     
     ; Lade Animations-Einstellungen
     Local $iSpeed = Int(IniRead($g_sConfigFile, "Animation", "AnimationSpeed", 20))
@@ -102,6 +103,11 @@ Func _CreateDefaultConfig()
     IniWrite($g_sConfigFile, "Behavior", "CenterOnStart", "1")
     IniWrite($g_sConfigFile, "Behavior", "AnimateOnStart", "0")
     IniWrite($g_sConfigFile, "Behavior", "SavePositionOnExit", "1")
+    IniWrite($g_sConfigFile, "Behavior", "AutoSlideIn", "0")
+    IniWrite($g_sConfigFile, "Behavior", "AutoSlideInDelay", "250")
+    IniWrite($g_sConfigFile, "Behavior", "ClassicSliderMode", "0")
+    IniWrite($g_sConfigFile, "Behavior", "DirectSlideMode", "0")
+    IniWrite($g_sConfigFile, "Behavior", "ContinuousSlideMode", "0")
     
     ; Hotkeys Section
     IniWrite($g_sConfigFile, "Hotkeys", "SlideLeft", "!{Left}")
@@ -110,6 +116,7 @@ Func _CreateDefaultConfig()
     IniWrite($g_sConfigFile, "Hotkeys", "SlideDown", "!{Down}")
     IniWrite($g_sConfigFile, "Hotkeys", "ToggleSlide", "!{Space}")
     IniWrite($g_sConfigFile, "Hotkeys", "CenterWindow", "!{Home}")
+    IniWrite($g_sConfigFile, "Hotkeys", "RecoverWindow", "!{End}")
     
     Return True
 EndFunc
@@ -126,13 +133,14 @@ EndFunc
 
 ; Liest die Hotkey-Konfiguration
 Func _GetHotkeys()
-    Local $aHotkeys[6][2] = [ _
+    Local $aHotkeys[7][2] = [ _
         ["SlideLeft", IniRead($g_sConfigFile, "Hotkeys", "SlideLeft", "!{Left}")], _
         ["SlideRight", IniRead($g_sConfigFile, "Hotkeys", "SlideRight", "!{Right}")], _
         ["SlideUp", IniRead($g_sConfigFile, "Hotkeys", "SlideUp", "!{Up}")], _
         ["SlideDown", IniRead($g_sConfigFile, "Hotkeys", "SlideDown", "!{Down}")], _
         ["ToggleSlide", IniRead($g_sConfigFile, "Hotkeys", "ToggleSlide", "!{Space}")], _
-        ["CenterWindow", IniRead($g_sConfigFile, "Hotkeys", "CenterWindow", "!{Home}")] _
+        ["CenterWindow", IniRead($g_sConfigFile, "Hotkeys", "CenterWindow", "!{Home}")], _
+        ["RecoverWindow", IniRead($g_sConfigFile, "Hotkeys", "RecoverWindow", "!{End}")] _
     ]
     
     Return $aHotkeys
@@ -140,11 +148,16 @@ EndFunc
 
 ; Liest Verhaltens-Einstellungen
 Func _GetBehaviorSettings()
-    Local $aSettings[4][2] = [ _
+    Local $aSettings[9][2] = [ _
         ["StartOnPrimaryMonitor", IniRead($g_sConfigFile, "Behavior", "StartOnPrimaryMonitor", "1") = "1"], _
         ["CenterOnStart", IniRead($g_sConfigFile, "Behavior", "CenterOnStart", "1") = "1"], _
         ["AnimateOnStart", IniRead($g_sConfigFile, "Behavior", "AnimateOnStart", "0") = "1"], _
-        ["SavePositionOnExit", IniRead($g_sConfigFile, "Behavior", "SavePositionOnExit", "1") = "1"] _
+        ["SavePositionOnExit", IniRead($g_sConfigFile, "Behavior", "SavePositionOnExit", "1") = "1"], _
+        ["AutoSlideIn", IniRead($g_sConfigFile, "Behavior", "AutoSlideIn", "0") = "1"], _
+        ["AutoSlideInDelay", Int(IniRead($g_sConfigFile, "Behavior", "AutoSlideInDelay", "250"))], _
+        ["ClassicSliderMode", IniRead($g_sConfigFile, "Behavior", "ClassicSliderMode", "0") = "1"], _
+        ["DirectSlideMode", IniRead($g_sConfigFile, "Behavior", "DirectSlideMode", "0") = "1"], _
+        ["ContinuousSlideMode", IniRead($g_sConfigFile, "Behavior", "ContinuousSlideMode", "0") = "1"] _
     ]
     
     Return $aSettings
