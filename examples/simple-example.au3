@@ -12,7 +12,7 @@
 ; GUI-Elemente
 Global $hMainGUI, $btnLeft, $btnUp, $btnStop, $btnDown, $btnRight
 Global $comboMode, $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
-Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset
+Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset, $btnVisualizer
 
 ; Einstellungen
 Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
@@ -20,11 +20,11 @@ Global $bAutoSlideEnabled = True
 
 ; Erstelle Test-GUI
 Func _CreateTestGUI()
-    $hMainGUI = GUICreate("GUI-Slider Test Tool", 420, 380, -1, -1, $WS_OVERLAPPEDWINDOW)
+    $hMainGUI = GUICreate("GUI-Slider Test Tool", 520, 420, -1, -1, $WS_OVERLAPPEDWINDOW)
     GUISetBkColor(0xF0F0F0)
     
     ; Titel
-    GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 400, 25, 1)
+    GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 500, 25, 1)
     GUICtrlSetFont(-1, 14, 800)
     GUICtrlSetColor(-1, 0x0066CC)
     
@@ -51,44 +51,48 @@ Func _CreateTestGUI()
     GUICtrlSetFont($btnDown, 12, 600)
     
     ; Einstellungen
-    GUICtrlCreateGroup("Einstellungen", 220, 50, 190, 120)
+    GUICtrlCreateGroup("Einstellungen", 220, 50, 290, 120)
     
     ; Modus-Auswahl
     GUICtrlCreateLabel("Slider-Modus:", 230, 75, 80, 20)
-    $comboMode = GUICtrlCreateCombo("", 230, 95, 170, 200, $CBS_DROPDOWNLIST)
+    $comboMode = GUICtrlCreateCombo("Continuous", 230, 95, 120, 200, $CBS_DROPDOWNLIST)
     GUICtrlSetData($comboMode, "Standard|Classic|Direct|Continuous", "Continuous")
     
     ; Geschwindigkeit
-    GUICtrlCreateLabel("Geschwindigkeit:", 230, 125, 80, 20)
-    $sliderSpeed = GUICtrlCreateSlider(230, 145, 100, 20)
+    GUICtrlCreateLabel("Geschwindigkeit:", 360, 75, 90, 20)
+    $sliderSpeed = GUICtrlCreateSlider(360, 95, 100, 20)
     GUICtrlSetLimit($sliderSpeed, 50, 5)  ; 5ms bis 50ms
     GUICtrlSetData($sliderSpeed, 20)  ; Standard: 20ms
-    $lblSpeed = GUICtrlCreateLabel("20ms", 340, 147, 40, 20)
+    $lblSpeed = GUICtrlCreateLabel("20ms", 470, 97, 40, 20)
     
     ; Auto-Slide-In
-    $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide-In", 230, 175, 100, 20)
+    $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide-In", 360, 125, 100, 20)
     GUICtrlSetState($chkAutoSlide, $GUI_CHECKED)
     
+    ; Visualizer Button
+    $btnVisualizer = GUICtrlCreateButton("Visualizer", 360, 145, 80, 20)
+    GUICtrlSetBkColor($btnVisualizer, 0x66FF66)
+    
     ; Zusätzliche Funktionen
-    GUICtrlCreateGroup("Funktionen", 10, 180, 400, 60)
+    GUICtrlCreateGroup("Funktionen", 10, 180, 500, 60)
     $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 90, 30)
     $btnAbout = GUICtrlCreateButton("Über", 120, 200, 60, 30)
     
     $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
-    $btnReset = GUICtrlCreateButton("Position zurücksetzen", 300, 200, 100, 30)
+    $btnReset = GUICtrlCreateButton("Position reset", 300, 200, 90, 30)
     
     ; Status-Anzeige
-    GUICtrlCreateGroup("Status", 10, 250, 400, 80)
-    $lblStatus = GUICtrlCreateLabel("Initialisiere...", 20, 275, 380, 20)
+    GUICtrlCreateGroup("Status", 10, 250, 500, 80)
+    $lblStatus = GUICtrlCreateLabel("Initialisiere...", 20, 275, 480, 20)
     GUICtrlSetBkColor($lblStatus, 0xFFFFFF)
     GUICtrlSetFont($lblStatus, 9, 400, 0, "Consolas")
     
-    $lblInfo = GUICtrlCreateLabel("Bereit zum Testen", 20, 300, 380, 20)
+    $lblInfo = GUICtrlCreateLabel("Bereit zum Testen", 20, 300, 480, 20)
     GUICtrlSetColor($lblInfo, 0x006600)
     
     ; Hotkey-Info
-    GUICtrlCreateGroup("Hotkeys", 10, 340, 400, 30)
-    GUICtrlCreateLabel("Alt+Pfeiltasten: Slider-Steuerung | Alt+Space: Stop | Esc: Beenden", 20, 355, 380, 15)
+    GUICtrlCreateGroup("Hotkeys", 10, 340, 500, 30)
+    GUICtrlCreateLabel("Alt+Pfeiltasten: Slider-Steuerung | Alt+Space: Stop | Esc: Beenden", 20, 355, 480, 15)
     GUICtrlSetFont(-1, 8)
     
     GUISetState(@SW_SHOW, $hMainGUI)
@@ -317,12 +321,7 @@ While 1
             
         ; Funktions-Buttons
         Case $btnConfig
-            MsgBox(0, "Konfiguration", "Erweiterte Konfiguration:" & @CRLF & @CRLF & _
-                   "• Modus: " & _SliderSystem_GetMode() & @CRLF & _
-                   "• Monitor: " & _SliderSystem_GetCurrentMonitor() & @CRLF & _
-                   "• Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & @CRLF & _
-                   "• Position: " & _SliderSystem_GetSlidePosition() & @CRLF & @CRLF & _
-                   "Verwende die Einstellungen im Hauptfenster zum Anpassen.")
+            _SliderSystem_ShowConfig()
             
         Case $btnAbout
             MsgBox(0, "Über", "GUI-Slider MultiMonitor Test Tool" & @CRLF & @CRLF & _
@@ -338,6 +337,15 @@ While 1
             
         Case $btnReset
             _ResetPosition()
+            
+        Case $btnVisualizer
+            Static $bVisualizerOn = False
+            $bVisualizerOn = Not $bVisualizerOn
+            _SliderSystem_EnableVisualizer($bVisualizerOn)
+            GUICtrlSetBkColor($btnVisualizer, $bVisualizerOn ? 0xFF6666 : 0x66FF66)
+            GUICtrlSetData($btnVisualizer, $bVisualizerOn ? "Vis AUS" : "Vis EIN")
+            ConsoleWrite("Visualizer " & ($bVisualizerOn ? "aktiviert" : "deaktiviert") & @CRLF)
+            _UpdateStatus()
     EndSwitch
     
     ; Status regelmäßig aktualisieren
