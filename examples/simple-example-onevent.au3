@@ -7,6 +7,8 @@
 #include <WindowsConstants.au3>
 #include <ComboConstants.au3>
 #include <EditConstants.au3>
+#include <WinAPI.au3>
+#include <StructureConstants.au3>
 #include "..\SliderSystem.au3"
 
 ; OnEvent Mode aktivieren
@@ -24,10 +26,12 @@ Global $bVisualizerOn = False
 
 ; Erstelle Test-GUI
 Func _CreateTestGUI()
-    $hMainGUI = GUICreate("GUI-Slider Test Tool (OnEvent)", 520, 420, -1, -1, BitOR($WS_OVERLAPPEDWINDOW, $WS_SIZEBOX))
-    GUISetMinMax($hMainGUI, 520, 420, 0, 0)  ; Minimum-Größe festlegen, kein Maximum
+    $hMainGUI = GUICreate("GUI-Slider Test Tool (OnEvent)", 520, 420, -1, -1, $WS_OVERLAPPEDWINDOW)
     GUISetBkColor(0xF0F0F0)
     GUISetOnEvent($GUI_EVENT_CLOSE, "_Exit")
+    
+    ; Registriere Handler für Minimum-Größe
+    GUIRegisterMsg($WM_GETMINMAXINFO, "_WM_GETMINMAXINFO")
     
     ; Titel
     GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 500, 25, 1)
@@ -406,3 +410,17 @@ ConsoleWrite("Test Tool bereit! Verwende Buttons oder Alt+Pfeiltasten zum Testen
 While 1
     Sleep(10)  ; Minimaler Sleep für CPU-Schonung
 WEnd
+
+; ==========================================
+; Window Message Handler
+; ==========================================
+
+; Handler für Minimum-Größe
+Func _WM_GETMINMAXINFO($hWnd, $msg, $wParam, $lParam)
+    If $hWnd = $hMainGUI Then
+        Local $minmaxinfo = DllStructCreate("int;int;int;int;int;int;int;int;int;int", $lParam)
+        DllStructSetData($minmaxinfo, 7, 520) ; Minimum X
+        DllStructSetData($minmaxinfo, 8, 420) ; Minimum Y
+    EndIf
+    Return $GUI_RUNDEFMSG
+EndFunc
