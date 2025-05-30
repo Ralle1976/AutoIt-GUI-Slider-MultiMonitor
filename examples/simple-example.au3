@@ -1,76 +1,341 @@
 #cs ----------------------------------------------------------------------------
- Simple Example: Grundlegende Verwendung der GUI-Slider-MultiMonitor UDF
+ GUI-Slider-MultiMonitor Test Tool
+ Vollwertige Testfunktion für alle Slider-Modi und -Einstellungen
 #ce ----------------------------------------------------------------------------
 
 #include <GUIConstantsEx.au3>
+#include <WindowsConstants.au3>
+#include <ComboConstants.au3>
+#include <EditConstants.au3>
 #include "..\SliderSystem.au3"
 
-; Erstelle dein GUI
-Local $hGUI = GUICreate("Einfaches Slider Beispiel", 400, 200)
-GUISetBkColor(0xF0F0F0)
+; GUI-Elemente
+Global $hMainGUI, $btnLeft, $btnUp, $btnStop, $btnDown, $btnRight
+Global $comboMode, $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
+Global $lblInfo, $btnConfig, $btnAbout
 
-; Deine GUI-Elemente
-Local $lblTitle = GUICtrlCreateLabel("Mein Programm mit Slider", 50, 20, 300, 30, 1)
-GUICtrlSetFont($lblTitle, 14, 600)
+; Einstellungen
+Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
+Global $bAutoSlideEnabled = True
 
-Local $btnMyButton = GUICtrlCreateButton("Meine Funktion", 50, 60, 120, 30)
+; Erstelle Test-GUI
+Func _CreateTestGUI()
+    $hMainGUI = GUICreate("GUI-Slider Test Tool", 420, 380, -1, -1, $WS_OVERLAPPEDWINDOW)
+    GUISetBkColor(0xF0F0F0)
+    
+    ; Titel
+    Local $lblTitle = GUICtrlCreateLabel("GUI-Slider MultiMonitor Test", 10, 10, 400, 25, 1)
+    GUICtrlSetFont($lblTitle, 14, 800)
+    GUICtrlSetColor($lblTitle, 0x0066CC)
+    
+    ; Slider-Steuerung (5-Tasten-Layout)
+    GUICtrlCreateGroup("Slider-Steuerung", 10, 50, 200, 120)
+    
+    ; Obere Reihe
+    $btnUp = GUICtrlCreateButton("↑", 85, 75, 50, 30)
+    GUICtrlSetFont($btnUp, 12, 600)
+    
+    ; Mittlere Reihe  
+    $btnLeft = GUICtrlCreateButton("←", 25, 105, 50, 30)
+    GUICtrlSetFont($btnLeft, 12, 600)
+    
+    $btnStop = GUICtrlCreateButton("⏹", 85, 105, 50, 30)
+    GUICtrlSetFont($btnStop, 12, 600)
+    GUICtrlSetBkColor($btnStop, 0xFF6666)
+    
+    $btnRight = GUICtrlCreateButton("→", 145, 105, 50, 30)
+    GUICtrlSetFont($btnRight, 12, 600)
+    
+    ; Untere Reihe
+    $btnDown = GUICtrlCreateButton("↓", 85, 135, 50, 30)
+    GUICtrlSetFont($btnDown, 12, 600)
+    
+    ; Einstellungen
+    GUICtrlCreateGroup("Einstellungen", 220, 50, 190, 120)
+    
+    ; Modus-Auswahl
+    GUICtrlCreateLabel("Slider-Modus:", 230, 75, 80, 20)
+    $comboMode = GUICtrlCreateCombo("", 230, 95, 170, 200, $CBS_DROPDOWNLIST)
+    GUICtrlSetData($comboMode, "Standard|Classic|Direct|Continuous", "Continuous")
+    
+    ; Geschwindigkeit
+    GUICtrlCreateLabel("Geschwindigkeit:", 230, 125, 80, 20)
+    $sliderSpeed = GUICtrlCreateSlider(230, 145, 100, 20)
+    GUICtrlSetLimit($sliderSpeed, 50, 5)  ; 5ms bis 50ms
+    GUICtrlSetData($sliderSpeed, 20)  ; Standard: 20ms
+    $lblSpeed = GUICtrlCreateLabel("20ms", 340, 147, 40, 20)
+    
+    ; Auto-Slide-In
+    $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide-In", 230, 175, 100, 20)
+    GUICtrlSetState($chkAutoSlide, $GUI_CHECKED)
+    
+    ; Zusätzliche Funktionen
+    GUICtrlCreateGroup("Funktionen", 10, 180, 400, 60)
+    $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 90, 30)
+    $btnAbout = GUICtrlCreateButton("Über", 120, 200, 60, 30)
+    
+    Local $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
+    Local $btnReset = GUICtrlCreateButton("Position zurücksetzen", 300, 200, 100, 30)
+    
+    ; Status-Anzeige
+    GUICtrlCreateGroup("Status", 10, 250, 400, 80)
+    $lblStatus = GUICtrlCreateLabel("Initialisiere...", 20, 275, 380, 20)
+    GUICtrlSetBkColor($lblStatus, 0xFFFFFF)
+    GUICtrlSetFont($lblStatus, 9, 400, 0, "Consolas")
+    
+    $lblInfo = GUICtrlCreateLabel("Bereit zum Testen", 20, 300, 380, 20)
+    GUICtrlSetColor($lblInfo, 0x006600)
+    
+    ; Hotkey-Info
+    GUICtrlCreateGroup("Hotkeys", 10, 340, 400, 30)
+    GUICtrlCreateLabel("Alt+Pfeiltasten: Slider-Steuerung | Alt+Space: Stop | Esc: Beenden", 20, 355, 380, 15)
+    GUICtrlSetFont(-1, 8)
+    
+    GUISetState(@SW_SHOW, $hMainGUI)
+    Return $hMainGUI
+EndFunc
 
-; Slider-Steuerung
-Local $btnLeft = GUICtrlCreateButton("← Links", 50, 110, 60, 30)
-Local $btnRight = GUICtrlCreateButton("Rechts →", 120, 110, 60, 30)
-Local $btnUp = GUICtrlCreateButton("↑ Oben", 190, 110, 60, 30)
-Local $btnDown = GUICtrlCreateButton("↓ Unten", 260, 110, 60, 30)
-
-Local $btnExit = GUICtrlCreateButton("Beenden", 320, 160, 60, 30)
-
-; GUI anzeigen
-GUISetState(@SW_SHOW, $hGUI)
-
-; ==========================================
 ; Slider-System initialisieren
-; ==========================================
-_SliderSystem_Init($hGUI)
-_SliderSystem_SetMode($SLIDER_MODE_CONTINUOUS)  ; Continuous Mode
-_SliderSystem_EnableAutoSlideIn(True, 250)      ; Auto-Slide-In nach 250ms
+Func _InitSliderSystem()
+    If Not _SliderSystem_Init($hMainGUI) Then
+        MsgBox(16, "Fehler", "Slider-System konnte nicht initialisiert werden!")
+        Exit 1
+    EndIf
+    
+    ; Standard-Einstellungen
+    _SliderSystem_SetMode("Continuous")
+    _SliderSystem_EnableAutoSlideIn(True, 250)
+    
+    ; Status aktualisieren
+    _UpdateStatus()
+    
+    ConsoleWrite("=== GUI-SLIDER TEST TOOL ====" & @CRLF)
+    ConsoleWrite("Slider-System erfolgreich initialisiert" & @CRLF)
+    ConsoleWrite("Modus: " & _SliderSystem_GetMode() & @CRLF)
+    ConsoleWrite("Monitor: " & _SliderSystem_GetCurrentMonitor() & @CRLF)
+    ConsoleWrite(@CRLF)
+EndFunc
 
-ConsoleWrite("Slider-System initialisiert!" & @CRLF)
-ConsoleWrite("Modus: " & _SliderSystem_GetMode() & @CRLF)
-ConsoleWrite("Monitor: " & _SliderSystem_GetCurrentMonitor() & @CRLF)
+; Status aktualisieren
+Func _UpdateStatus()
+    Local $sStatus = "Monitor: " & _SliderSystem_GetCurrentMonitor() & " | "
+    $sStatus &= "Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & " | "
+    $sStatus &= "Position: " & _SliderSystem_GetSlidePosition() & " | "
+    $sStatus &= "Modus: " & _SliderSystem_GetMode()
+    GUICtrlSetData($lblStatus, $sStatus)
+    
+    Local $sInfo = "Geschwindigkeit: " & $iAnimationSpeed & "ms | "
+    $sInfo &= "Auto-Slide: " & ($bAutoSlideEnabled ? "EIN" : "AUS")
+    GUICtrlSetData($lblInfo, $sInfo)
+EndFunc
+
+; Modus ändern
+Func _ChangeMode()
+    Local $sNewMode = GUICtrlRead($comboMode)
+    _SliderSystem_SetMode($sNewMode)
+    ConsoleWrite("Modus geändert zu: " & $sNewMode & @CRLF)
+    _UpdateStatus()
+EndFunc
+
+; Geschwindigkeit ändern
+Func _ChangeSpeed()
+    $iAnimationSpeed = GUICtrlRead($sliderSpeed)
+    GUICtrlSetData($lblSpeed, $iAnimationSpeed & "ms")
+    ConsoleWrite("Geschwindigkeit geändert zu: " & $iAnimationSpeed & "ms" & @CRLF)
+    _UpdateStatus()
+EndFunc
+
+; Auto-Slide-In umschalten
+Func _ToggleAutoSlide()
+    $bAutoSlideEnabled = (GUICtrlRead($chkAutoSlide) = $GUI_CHECKED)
+    _SliderSystem_EnableAutoSlideIn($bAutoSlideEnabled, 250)
+    ConsoleWrite("Auto-Slide-In: " & ($bAutoSlideEnabled ? "aktiviert" : "deaktiviert") & @CRLF)
+    _UpdateStatus()
+EndFunc
+
+; Alle Modi testen
+Func _TestAllModes()
+    Local $aModes[4] = ["Standard", "Classic", "Direct", "Continuous"]
+    
+    For $i = 0 To 3
+        ConsoleWrite("Teste Modus: " & $aModes[$i] & @CRLF)
+        _SliderSystem_SetMode($aModes[$i])
+        GUICtrlSetData($comboMode, "", $aModes[$i])
+        _UpdateStatus()
+        
+        ; Kurz warten
+        Sleep(1000)
+        
+        ; Test-Bewegung
+        _SliderSystem_SlideRight()
+        Sleep(500)
+        _SliderSystem_SlideLeft()
+        Sleep(1000)
+    Next
+    
+    ; Zurück zu Continuous
+    _SliderSystem_SetMode("Continuous")
+    GUICtrlSetData($comboMode, "", "Continuous")
+    _UpdateStatus()
+    
+    MsgBox(0, "Test", "Alle Modi getestet! Zurück zu Continuous Mode.")
+EndFunc
+
+; Position zurücksetzen
+Func _ResetPosition()
+    ; GUI in die Bildschirmmitte bewegen
+    Local $iScreenWidth = @DesktopWidth
+    Local $iScreenHeight = @DesktopHeight
+    Local $aGUISize = WinGetClientSize($hMainGUI)
+    
+    Local $iCenterX = ($iScreenWidth - $aGUISize[0]) / 2
+    Local $iCenterY = ($iScreenHeight - $aGUISize[1]) / 2
+    
+    WinMove($hMainGUI, "", $iCenterX, $iCenterY)
+    
+    ConsoleWrite("Position zurückgesetzt zur Bildschirmmitte" & @CRLF)
+    _UpdateStatus()
+EndFunc
+
+; Hotkeys registrieren
+Func _RegisterHotkeys()
+    HotKeySet("!{LEFT}", "_HotkeyLeft")
+    HotKeySet("!{RIGHT}", "_HotkeyRight") 
+    HotKeySet("!{UP}", "_HotkeyUp")
+    HotKeySet("!{DOWN}", "_HotkeyDown")
+    HotKeySet("!{SPACE}", "_HotkeyStop")
+    HotKeySet("{ESC}", "_Exit")
+EndFunc
+
+; Hotkey-Funktionen
+Func _HotkeyLeft()
+    _SliderSystem_SlideLeft()
+    _UpdateStatus()
+EndFunc
+
+Func _HotkeyRight()
+    _SliderSystem_SlideRight()
+    _UpdateStatus()
+EndFunc
+
+Func _HotkeyUp()
+    _SliderSystem_SlideUp()
+    _UpdateStatus()
+EndFunc
+
+Func _HotkeyDown()
+    _SliderSystem_SlideDown()
+    _UpdateStatus()
+EndFunc
+
+Func _HotkeyStop()
+    ; Stop-Funktion: Slide zurück zur Mitte wenn ausgefahren
+    If _SliderSystem_IsSlideOut() Then
+        Local $sPos = _SliderSystem_GetSlidePosition()
+        Switch $sPos
+            Case "Left"
+                _SliderSystem_SlideLeft()
+            Case "Right"
+                _SliderSystem_SlideRight()
+            Case "Top"
+                _SliderSystem_SlideUp()
+            Case "Bottom"
+                _SliderSystem_SlideDown()
+        EndSwitch
+        _UpdateStatus()
+    EndIf
+EndFunc
+
+; Cleanup und Exit
+Func _Exit()
+    _SliderSystem_Cleanup()
+    HotKeySet("!{LEFT}")
+    HotKeySet("!{RIGHT}")
+    HotKeySet("!{UP}")
+    HotKeySet("!{DOWN}")
+    HotKeySet("!{SPACE}")
+    HotKeySet("{ESC}")
+    GUIDelete($hMainGUI)
+    ConsoleWrite("Test Tool beendet." & @CRLF)
+    Exit
+EndFunc
 
 ; ==========================================
-; Event-Loop
+; HAUPTPROGRAMM
 ; ==========================================
+
+ConsoleWrite("Starte GUI-Slider Test Tool..." & @CRLF)
+
+; GUI erstellen
+_CreateTestGUI()
+
+; Slider-System initialisieren  
+_InitSliderSystem()
+
+; Hotkeys registrieren
+_RegisterHotkeys()
+
+ConsoleWrite("Test Tool bereit! Verwende Buttons oder Alt+Pfeiltasten zum Testen." & @CRLF)
+
+; Hauptschleife
 While 1
     Local $msg = GUIGetMsg()
     
     Switch $msg
-        Case $GUI_EVENT_CLOSE, $btnExit
-            ExitLoop
+        Case $GUI_EVENT_CLOSE
+            _Exit()
             
-        Case $btnMyButton
-            MsgBox(0, "Info", "Meine Funktion wurde ausgeführt!")
-            
-        ; Slider-Steuerung
+        ; Slider-Buttons
         Case $btnLeft
             _SliderSystem_SlideLeft()
+            _UpdateStatus()
             
         Case $btnRight
             _SliderSystem_SlideRight()
+            _UpdateStatus()
             
         Case $btnUp
             _SliderSystem_SlideUp()
+            _UpdateStatus()
             
         Case $btnDown
             _SliderSystem_SlideDown()
+            _UpdateStatus()
+            
+        Case $btnStop
+            _HotkeyStop()
+            
+        ; Einstellungen
+        Case $comboMode
+            _ChangeMode()
+            
+        Case $sliderSpeed
+            _ChangeSpeed()
+            
+        Case $chkAutoSlide
+            _ToggleAutoSlide()
+            
+        ; Funktions-Buttons
+        Case $btnConfig
+            _SliderSystem_ShowConfig()
+            
+        Case $btnAbout
+            MsgBox(0, "Über", "GUI-Slider MultiMonitor Test Tool" & @CRLF & @CRLF & _
+                   "Version: 2.0" & @CRLF & _
+                   "Autor: Ralle1976" & @CRLF & @CRLF & _
+                   "Hotkeys:" & @CRLF & _
+                   "Alt+Pfeiltasten: Slider-Steuerung" & @CRLF & _
+                   "Alt+Space: Stop/Zurück zur Mitte" & @CRLF & _
+                   "Esc: Beenden")
+                   
+        Case Else
+            If $msg = GUICtrlRead($lblTitle) + 1000 Then  ; Test alle Modi
+                _TestAllModes()
+            ElseIf $msg = GUICtrlRead($lblTitle) + 1001 Then  ; Reset Position
+                _ResetPosition()
+            EndIf
     EndSwitch
     
-    Sleep(10)
+    ; Status regelmäßig aktualisieren
+    Sleep(50)
 WEnd
-
-; ==========================================
-; Cleanup
-; ==========================================
-_SliderSystem_Cleanup()
-GUIDelete($hGUI)
-
-ConsoleWrite("Programm beendet." & @CRLF)

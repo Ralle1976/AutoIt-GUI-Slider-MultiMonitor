@@ -445,7 +445,7 @@ EndFunc
 Func __SliderSystem_GetPhysicalLeftMonitor($iMonitor)
     For $i = 1 To $__SliderSystem_iPhysicalMappingCount
         If $__SliderSystem_aPhysicalMapping[$i][0] = $iMonitor Then
-            If $i > 1 Then
+            If $i > 1 And $i - 1 >= 1 Then
                 Return $__SliderSystem_aPhysicalMapping[$i - 1][0]
             EndIf
             ExitLoop
@@ -458,7 +458,7 @@ EndFunc
 Func __SliderSystem_GetPhysicalRightMonitor($iMonitor)
     For $i = 1 To $__SliderSystem_iPhysicalMappingCount
         If $__SliderSystem_aPhysicalMapping[$i][0] = $iMonitor Then
-            If $i < $__SliderSystem_iPhysicalMappingCount Then
+            If $i < $__SliderSystem_iPhysicalMappingCount And $i + 1 <= $__SliderSystem_iPhysicalMappingCount Then
                 Return $__SliderSystem_aPhysicalMapping[$i + 1][0]
             EndIf
             ExitLoop
