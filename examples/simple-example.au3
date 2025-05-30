@@ -12,7 +12,7 @@
 ; GUI-Elemente
 Global $hMainGUI, $btnLeft, $btnUp, $btnStop, $btnDown, $btnRight
 Global $comboMode, $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
-Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset, $btnVisualizer
+Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset, $btnVisualizer, $btnSlideIn
 
 ; Einstellungen
 Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
@@ -24,7 +24,8 @@ Global $iDragStartX, $iDragStartY
 
 ; Erstelle Test-GUI
 Func _CreateTestGUI()
-    $hMainGUI = GUICreate("GUI-Slider Test Tool", 520, 420, -1, -1, $WS_OVERLAPPEDWINDOW)
+    $hMainGUI = GUICreate("GUI-Slider Test Tool", 520, 420, -1, -1, BitOR($WS_OVERLAPPEDWINDOW, $WS_SIZEBOX))
+    GUISetMinMax($hMainGUI, 520, 420, 0, 0)  ; Minimum-Größe festlegen, kein Maximum
     GUISetBkColor(0xF0F0F0)
     
     ; Titel
@@ -88,15 +89,23 @@ Func _CreateTestGUI()
     
     ; Zusätzliche Funktionen
     GUICtrlCreateGroup("Funktionen", 10, 180, 500, 60)
-    $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 90, 30)
+    $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 100, 30)
     GUICtrlSetTip($btnConfig, "Erweiterte Konfiguration mit Monitor-Infos")
-    $btnAbout = GUICtrlCreateButton("Über", 120, 200, 60, 30)
-    GUICtrlSetTip($btnAbout, "Über das Test Tool")
     
-    $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
+    $btnTest = GUICtrlCreateButton("Alle Modi testen", 130, 200, 110, 30)
     GUICtrlSetTip($btnTest, "Testet automatisch alle 4 Slider-Modi")
-    $btnReset = GUICtrlCreateButton("Position reset", 300, 200, 90, 30)
+    
+    $btnReset = GUICtrlCreateButton("Position reset", 250, 200, 100, 30)
     GUICtrlSetTip($btnReset, "GUI zur Bildschirmmitte zurücksetzen")
+    
+    ; Slide-In Button für manuelles Einfahren
+    $btnSlideIn = GUICtrlCreateButton("Slide IN", 360, 200, 70, 30)
+    GUICtrlSetTip($btnSlideIn, "Manuell einfahren wenn Auto-Slide aus ist")
+    
+    ; Info-Icon (statt About Button)
+    $btnAbout = GUICtrlCreateButton("ℹ", 480, 10, 25, 25)
+    GUICtrlSetFont($btnAbout, 12, 400)
+    GUICtrlSetTip($btnAbout, "Über das Test Tool")
     
     ; Status-Anzeige
     GUICtrlCreateGroup("Status", 10, 250, 500, 80)
@@ -377,6 +386,26 @@ While 1
             
         Case $btnReset
             _ResetPosition()
+            
+        Case $btnSlideIn
+            ; Manuelles Einfahren
+            If _SliderSystem_IsSlideOut() Then
+                Local $sPos = _SliderSystem_GetSlidePosition()
+                Switch $sPos
+                    Case "Left"
+                        _SliderSystem_SlideLeft()
+                    Case "Right"
+                        _SliderSystem_SlideRight()
+                    Case "Top"
+                        _SliderSystem_SlideUp()
+                    Case "Bottom"
+                        _SliderSystem_SlideDown()
+                EndSwitch
+                ConsoleWrite("Manuell eingefahren von Position: " & $sPos & @CRLF)
+                _UpdateTestStatus()
+            Else
+                ConsoleWrite("GUI ist bereits eingefahren" & @CRLF)
+            EndIf
             
         Case $btnVisualizer
             Static $bVisualizerOn = False
