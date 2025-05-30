@@ -164,6 +164,7 @@ Func _DrawMonitors()
     Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
     Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
     Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
+    If $fScale < 0.3 Then $fScale = 0.3  ; Mindestgröße für Lesbarkeit
     
     ; Zentriere das Layout
     Local $iOffsetX = ($g_iVisWidth - ($iTotalWidth * $fScale)) / 2
@@ -174,7 +175,11 @@ Func _DrawMonitors()
     Local $hBrushActive = _GDIPlus_BrushCreateSolid($COLOR_MONITOR_ACTIVE)
     Local $hPenBorder = _GDIPlus_PenCreate(0xFF808080, 2)
     Local $hBrushText = _GDIPlus_BrushCreateSolid($COLOR_TEXT)
-    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Arial"), 10, 1)
+    ; Größere Schrift basierend auf Monitor-Größe
+    Local $iFontSize = Int($fScale * 12)
+    If $iFontSize < 10 Then $iFontSize = 10  ; Minimum für Lesbarkeit
+    If $iFontSize > 20 Then $iFontSize = 20  ; Maximum
+    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Arial"), $iFontSize, 1)
     Local $hStringFormat = _GDIPlus_StringFormatCreate()
     _GDIPlus_StringFormatSetAlign($hStringFormat, 1)  ; Center align
 
@@ -205,9 +210,11 @@ Func _DrawMonitors()
         _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sMonitorText, $hFont, $tLayout, $hStringFormat, $hBrushText)
 
         ; Auflösung zeichnen
-        $tLayout = _GDIPlus_RectFCreate($iX, $iY + $iH/2 + 5, $iW, 20)
+        $tLayout = _GDIPlus_RectFCreate($iX, $iY + $iH/2 + 10, $iW, 20)
         Local $sFontFamily = _GDIPlus_FontFamilyCreate("Arial")
-        Local $hFontSmall = _GDIPlus_FontCreate($sFontFamily, 8)
+        Local $iFontSizeSmall = Int($iFontSize * 0.8)
+        If $iFontSizeSmall < 8 Then $iFontSizeSmall = 8
+        Local $hFontSmall = _GDIPlus_FontCreate($sFontFamily, $iFontSizeSmall)
         _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $g_aMonitors[$i][0] & "x" & $g_aMonitors[$i][1], _
                                      $hFontSmall, $tLayout, $hStringFormat, $hBrushText)
         _GDIPlus_FontDispose($hFontSmall)

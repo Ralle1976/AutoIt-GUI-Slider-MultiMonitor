@@ -18,6 +18,10 @@ Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset, $btnVisualizer
 Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
 Global $bAutoSlideEnabled = True
 
+; Drag-Variablen
+Global $bDragging = False
+Global $iDragStartX, $iDragStartY
+
 ; Erstelle Test-GUI
 Func _CreateTestGUI()
     $hMainGUI = GUICreate("GUI-Slider Test Tool", 520, 420, -1, -1, $WS_OVERLAPPEDWINDOW)
@@ -34,21 +38,26 @@ Func _CreateTestGUI()
     ; Obere Reihe
     $btnUp = GUICtrlCreateButton("↑", 85, 75, 50, 30)
     GUICtrlSetFont($btnUp, 12, 600)
+    GUICtrlSetTip($btnUp, "Nach oben sliden (Alt+↑)")
     
     ; Mittlere Reihe  
     $btnLeft = GUICtrlCreateButton("←", 25, 105, 50, 30)
     GUICtrlSetFont($btnLeft, 12, 600)
+    GUICtrlSetTip($btnLeft, "Nach links sliden (Alt+←)")
     
     $btnStop = GUICtrlCreateButton("⏹", 85, 105, 50, 30)
     GUICtrlSetFont($btnStop, 12, 600)
     GUICtrlSetBkColor($btnStop, 0xFF6666)
+    GUICtrlSetTip($btnStop, "Stop/Zurück zur Mitte (Alt+Space)")
     
     $btnRight = GUICtrlCreateButton("→", 145, 105, 50, 30)
     GUICtrlSetFont($btnRight, 12, 600)
+    GUICtrlSetTip($btnRight, "Nach rechts sliden (Alt+→)")
     
     ; Untere Reihe
     $btnDown = GUICtrlCreateButton("↓", 85, 135, 50, 30)
     GUICtrlSetFont($btnDown, 12, 600)
+    GUICtrlSetTip($btnDown, "Nach unten sliden (Alt+↓)")
     
     ; Einstellungen
     GUICtrlCreateGroup("Einstellungen", 220, 50, 290, 120)
@@ -57,29 +66,37 @@ Func _CreateTestGUI()
     GUICtrlCreateLabel("Slider-Modus:", 230, 75, 80, 20)
     $comboMode = GUICtrlCreateCombo("Continuous", 230, 95, 120, 200, $CBS_DROPDOWNLIST)
     GUICtrlSetData($comboMode, "Standard|Classic|Direct|Continuous", "Continuous")
+    GUICtrlSetTip($comboMode, "Standard: Normal | Classic: 2-Klick | Direct: Sofort | Continuous: Durchfahren")
     
     ; Geschwindigkeit
     GUICtrlCreateLabel("Geschwindigkeit:", 360, 75, 90, 20)
     $sliderSpeed = GUICtrlCreateSlider(360, 95, 100, 20)
     GUICtrlSetLimit($sliderSpeed, 50, 5)  ; 5ms bis 50ms
     GUICtrlSetData($sliderSpeed, 20)  ; Standard: 20ms
+    GUICtrlSetTip($sliderSpeed, "Animation-Geschwindigkeit (5-50ms)")
     $lblSpeed = GUICtrlCreateLabel("20ms", 470, 97, 40, 20)
     
     ; Auto-Slide-In
     $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide-In", 360, 125, 100, 20)
     GUICtrlSetState($chkAutoSlide, $GUI_CHECKED)
+    GUICtrlSetTip($chkAutoSlide, "Automatisches Einfahren bei Maus-Berührung")
     
     ; Visualizer Button
     $btnVisualizer = GUICtrlCreateButton("Visualizer", 360, 145, 80, 20)
     GUICtrlSetBkColor($btnVisualizer, 0x66FF66)
+    GUICtrlSetTip($btnVisualizer, "Monitor-Visualisierung ein/ausschalten")
     
     ; Zusätzliche Funktionen
     GUICtrlCreateGroup("Funktionen", 10, 180, 500, 60)
     $btnConfig = GUICtrlCreateButton("Konfiguration", 20, 200, 90, 30)
+    GUICtrlSetTip($btnConfig, "Erweiterte Konfiguration mit Monitor-Infos")
     $btnAbout = GUICtrlCreateButton("Über", 120, 200, 60, 30)
+    GUICtrlSetTip($btnAbout, "Über das Test Tool")
     
     $btnTest = GUICtrlCreateButton("Alle Modi testen", 190, 200, 100, 30)
+    GUICtrlSetTip($btnTest, "Testet automatisch alle 4 Slider-Modi")
     $btnReset = GUICtrlCreateButton("Position reset", 300, 200, 90, 30)
+    GUICtrlSetTip($btnReset, "GUI zur Bildschirmmitte zurücksetzen")
     
     ; Status-Anzeige
     GUICtrlCreateGroup("Status", 10, 250, 500, 80)
@@ -285,7 +302,30 @@ ConsoleWrite("Test Tool bereit! Verwende Buttons oder Alt+Pfeiltasten zum Testen
 While 1
     Local $msg = GUIGetMsg()
     
+    ; Drag-Funktionalität
     Switch $msg
+        Case $GUI_EVENT_PRIMARYDOWN
+            ; Starte Drag
+            Local $aCursorInfo = GUIGetCursorInfo($hMainGUI)
+            If IsArray($aCursorInfo) And $aCursorInfo[4] = 0 Then ; Kein Control unter Maus
+                $bDragging = True
+                Local $aMousePos = MouseGetPos()
+                Local $aWinPos = WinGetPos($hMainGUI)
+                $iDragStartX = $aMousePos[0] - $aWinPos[0]
+                $iDragStartY = $aMousePos[1] - $aWinPos[1]
+            EndIf
+            
+        Case $GUI_EVENT_PRIMARYUP
+            ; Stoppe Drag
+            $bDragging = False
+            
+        Case $GUI_EVENT_MOUSEMOVE
+            ; GUI bewegen wenn Dragging
+            If $bDragging Then
+                Local $aMousePos = MouseGetPos()
+                WinMove($hMainGUI, "", $aMousePos[0] - $iDragStartX, $aMousePos[1] - $iDragStartY)
+            EndIf
+            
         Case $GUI_EVENT_CLOSE
             _Exit()
             
