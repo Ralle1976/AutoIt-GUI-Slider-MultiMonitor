@@ -111,7 +111,7 @@ Func _InitSliderSystem()
     _SliderSystem_EnableAutoSlideIn(True, 250)
     
     ; Status aktualisieren
-    _UpdateStatus()
+    _UpdateTestStatus()
     
     ConsoleWrite("=== GUI-SLIDER TEST TOOL ====" & @CRLF)
     ConsoleWrite("Slider-System erfolgreich initialisiert" & @CRLF)
@@ -121,7 +121,7 @@ Func _InitSliderSystem()
 EndFunc
 
 ; Status aktualisieren
-Func _UpdateStatus()
+Func _UpdateTestStatus()
     Local $sStatus = "Monitor: " & _SliderSystem_GetCurrentMonitor() & " | "
     $sStatus &= "Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & " | "
     $sStatus &= "Position: " & _SliderSystem_GetSlidePosition() & " | "
@@ -138,7 +138,7 @@ Func _ChangeMode()
     Local $sNewMode = GUICtrlRead($comboMode)
     _SliderSystem_SetMode($sNewMode)
     ConsoleWrite("Modus geändert zu: " & $sNewMode & @CRLF)
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 ; Geschwindigkeit ändern
@@ -146,7 +146,7 @@ Func _ChangeSpeed()
     $iAnimationSpeed = GUICtrlRead($sliderSpeed)
     GUICtrlSetData($lblSpeed, $iAnimationSpeed & "ms")
     ConsoleWrite("Geschwindigkeit geändert zu: " & $iAnimationSpeed & "ms" & @CRLF)
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 ; Auto-Slide-In umschalten
@@ -154,7 +154,7 @@ Func _ToggleAutoSlide()
     $bAutoSlideEnabled = (GUICtrlRead($chkAutoSlide) = $GUI_CHECKED)
     _SliderSystem_EnableAutoSlideIn($bAutoSlideEnabled, 250)
     ConsoleWrite("Auto-Slide-In: " & ($bAutoSlideEnabled ? "aktiviert" : "deaktiviert") & @CRLF)
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 ; Alle Modi testen
@@ -165,7 +165,7 @@ Func _TestAllModes()
         ConsoleWrite("Teste Modus: " & $aModes[$i] & @CRLF)
         _SliderSystem_SetMode($aModes[$i])
         GUICtrlSetData($comboMode, "", $aModes[$i])
-        _UpdateStatus()
+        _UpdateTestStatus()
         
         ; Kurz warten
         Sleep(1000)
@@ -180,7 +180,7 @@ Func _TestAllModes()
     ; Zurück zu Continuous
     _SliderSystem_SetMode("Continuous")
     GUICtrlSetData($comboMode, "", "Continuous")
-    _UpdateStatus()
+    _UpdateTestStatus()
     
     MsgBox(0, "Test", "Alle Modi getestet! Zurück zu Continuous Mode.")
 EndFunc
@@ -198,11 +198,11 @@ Func _ResetPosition()
     WinMove($hMainGUI, "", $iCenterX, $iCenterY)
     
     ConsoleWrite("Position zurückgesetzt zur Bildschirmmitte" & @CRLF)
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 ; Hotkeys registrieren
-Func _RegisterHotkeys()
+Func _RegisterTestHotkeys()
     HotKeySet("!{LEFT}", "_HotkeyLeft")
     HotKeySet("!{RIGHT}", "_HotkeyRight") 
     HotKeySet("!{UP}", "_HotkeyUp")
@@ -214,22 +214,22 @@ EndFunc
 ; Hotkey-Funktionen
 Func _HotkeyLeft()
     _SliderSystem_SlideLeft()
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 Func _HotkeyRight()
     _SliderSystem_SlideRight()
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 Func _HotkeyUp()
     _SliderSystem_SlideUp()
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 Func _HotkeyDown()
     _SliderSystem_SlideDown()
-    _UpdateStatus()
+    _UpdateTestStatus()
 EndFunc
 
 Func _HotkeyStop()
@@ -246,7 +246,7 @@ Func _HotkeyStop()
             Case "Bottom"
                 _SliderSystem_SlideDown()
         EndSwitch
-        _UpdateStatus()
+        _UpdateTestStatus()
     EndIf
 EndFunc
 
@@ -277,7 +277,7 @@ _CreateTestGUI()
 _InitSliderSystem()
 
 ; Hotkeys registrieren
-_RegisterHotkeys()
+_RegisterTestHotkeys()
 
 ConsoleWrite("Test Tool bereit! Verwende Buttons oder Alt+Pfeiltasten zum Testen." & @CRLF)
 
@@ -292,19 +292,19 @@ While 1
         ; Slider-Buttons
         Case $btnLeft
             _SliderSystem_SlideLeft()
-            _UpdateStatus()
+            _UpdateTestStatus()
             
         Case $btnRight
             _SliderSystem_SlideRight()
-            _UpdateStatus()
+            _UpdateTestStatus()
             
         Case $btnUp
             _SliderSystem_SlideUp()
-            _UpdateStatus()
+            _UpdateTestStatus()
             
         Case $btnDown
             _SliderSystem_SlideDown()
-            _UpdateStatus()
+            _UpdateTestStatus()
             
         Case $btnStop
             _HotkeyStop()
@@ -345,7 +345,7 @@ While 1
             GUICtrlSetBkColor($btnVisualizer, $bVisualizerOn ? 0xFF6666 : 0x66FF66)
             GUICtrlSetData($btnVisualizer, $bVisualizerOn ? "Vis AUS" : "Vis EIN")
             ConsoleWrite("Visualizer " & ($bVisualizerOn ? "aktiviert" : "deaktiviert") & @CRLF)
-            _UpdateStatus()
+            _UpdateTestStatus()
     EndSwitch
     
     ; Status regelmäßig aktualisieren
