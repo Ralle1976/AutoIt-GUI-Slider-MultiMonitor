@@ -3,7 +3,7 @@
 #include "..\includes\Constants.au3"
 #include "MonitorDetection.au3"
 #include "Logging.au3"
-#include "Visualization.au3"
+#include "VisualizationWin11.au3"
 
 ; ==========================================
 ; Slider Logic Module
