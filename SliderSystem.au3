@@ -306,7 +306,9 @@ Func _SliderSystem_ShowConfig()
     
     GUISetState(@SW_SHOW, $hConfigGUI)
     
-    ; Event-Loop für Config-GUI
+    ; Event-Loop für Config-GUI (funktioniert auch im OnEvent Mode)
+    Local $iOldMode = Opt("GUIOnEventMode", 0)  ; Temporär auf Message Mode
+    
     While 1
         Local $msg = GUIGetMsg()
         
@@ -319,8 +321,10 @@ Func _SliderSystem_ShowConfig()
                 _SliderSystem_EnableVisualizer($__SliderSystem_bVisualizerEnabled)
         EndSwitch
         
-        Sleep(50)
+        Sleep(20)
     WEnd
+    
+    Opt("GUIOnEventMode", $iOldMode)  ; Zurück zum vorherigen Mode
     
     GUIDelete($hConfigGUI)
     Return True
