@@ -89,8 +89,11 @@ Func _CalculateScale()
     Local $iTotalHeight = $iMaxY - $iMinY
 
     ; Skalierung mit etwas Rand berechnen
-    Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
-    Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
+    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
+    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
+
+    Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
+    Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
 
     $g_fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
 
@@ -139,36 +142,57 @@ EndFunc
 
 ; Zeichnet alle Monitore
 Func _DrawMonitors()
+    If Not IsArray($g_aMonitors) Then
+        _LogError("g_aMonitors ist kein Array!")
+        Return
+    EndIf
+
     If $g_aMonitors[0][0] = 0 Then
         _LogWarning("Keine Monitore zum Zeichnen vorhanden")
         Return
     EndIf
 
     _LogDebug("Zeichne " & $g_aMonitors[0][0] & " Monitore")
+    _LogDebug("g_aMonitors Array-Dimensionen: " & UBound($g_aMonitors, 1) & "x" & UBound($g_aMonitors, 2))
+
+    ; Debug: Zeige alle Monitor-Daten
+    For $i = 1 To $g_aMonitors[0][0]
+        _LogDebug("Monitor " & $i & ": " & $g_aMonitors[$i][0] & "x" & $g_aMonitors[$i][1] & _
+                 " @ " & $g_aMonitors[$i][2] & "," & $g_aMonitors[$i][3])
+    Next
 
     ; Berechne Grenzen aller Monitore für optimale Skalierung
     Local $iMinX = 999999, $iMinY = 999999
     Local $iMaxX = -999999, $iMaxY = -999999
-    
+
     For $i = 1 To $g_aMonitors[0][0]
         If $g_aMonitors[$i][2] < $iMinX Then $iMinX = $g_aMonitors[$i][2]
         If $g_aMonitors[$i][3] < $iMinY Then $iMinY = $g_aMonitors[$i][3]
         If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iMaxX Then $iMaxX = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
         If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iMaxY Then $iMaxY = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
     Next
-    
+
     Local $iTotalWidth = $iMaxX - $iMinX
     Local $iTotalHeight = $iMaxY - $iMinY
-    
+
     ; Berechne optimale Skalierung und Offset
-    Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
-    Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
+    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
+    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
+
+    Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
+    Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
     Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
-    If $fScale < 0.3 Then $fScale = 0.3  ; Mindestgröße für Lesbarkeit
-    
-    ; Zentriere das Layout
-    Local $iOffsetX = ($g_iVisWidth - ($iTotalWidth * $fScale)) / 2
-    Local $iOffsetY = 70  ; Platz für Titel
+    If $fScale < 0.05 Then $fScale = 0.05  ; Mindestgröße für Lesbarkeit
+    If $fScale > 3.0 Then $fScale = 3.0   ; Maximalgröße
+
+    _LogDebug("Optimierte Skalierung - TotalSize: " & $iTotalWidth & "x" & $iTotalHeight & " Available: " & $iAvailableWidth & "x" & $iAvailableHeight)
+    _LogDebug("ScaleX: " & $fScaleX & " ScaleY: " & $fScaleY & " Final: " & $fScale)
+
+    ; Zentriere das Layout optimal
+    Local $iScaledWidth = $iTotalWidth * $fScale
+    Local $iScaledHeight = $iTotalHeight * $fScale
+    Local $iOffsetX = ($g_iVisWidth - $iScaledWidth) / 2
+    Local $iOffsetY = 30 + ($iAvailableHeight - $iScaledHeight) / 2  ; 30px für Titel + zentriert im Rest
 
     ; Brushes und Pens
     Local $hBrushInactive = _GDIPlus_BrushCreateSolid($COLOR_MONITOR)
@@ -189,7 +213,7 @@ Func _DrawMonitors()
         Local $iY = $iOffsetY + (($g_aMonitors[$i][3] - $iMinY) * $fScale)
         Local $iW = $g_aMonitors[$i][0] * $fScale
         Local $iH = $g_aMonitors[$i][1] * $fScale
-        
+
         _LogDebug("Monitor " & $i & " - Zeichne bei X=" & $iX & ", Y=" & $iY & ", W=" & $iW & ", H=" & $iH)
 
         ; Monitor-Rechteck zeichnen
@@ -240,25 +264,34 @@ Func _DrawGUIWindow()
     ; Berechne die gleichen Grenzen und Skalierung wie in _DrawMonitors()
     Local $iMinX = 999999, $iMinY = 999999
     Local $iMaxX = -999999, $iMaxY = -999999
-    
+
     For $i = 1 To $g_aMonitors[0][0]
         If $g_aMonitors[$i][2] < $iMinX Then $iMinX = $g_aMonitors[$i][2]
         If $g_aMonitors[$i][3] < $iMinY Then $iMinY = $g_aMonitors[$i][3]
         If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iMaxX Then $iMaxX = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
         If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iMaxY Then $iMaxY = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
     Next
-    
+
     Local $iTotalWidth = $iMaxX - $iMinX
     Local $iTotalHeight = $iMaxY - $iMinY
-    
+
     ; Berechne optimale Skalierung und Offset (identisch mit _DrawMonitors)
-    Local $fScaleX = ($g_iVisWidth - 60) / $iTotalWidth
-    Local $fScaleY = ($g_iVisHeight - 100) / $iTotalHeight
+    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
+    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
+
+    Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
+    Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
     Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
-    
-    ; Zentriere das Layout (identisch mit _DrawMonitors)
-    Local $iOffsetX = ($g_iVisWidth - ($iTotalWidth * $fScale)) / 2
-    Local $iOffsetY = 70  ; Platz für Titel
+
+    ; Sicherstellen, dass Skalierung sinnvoll ist
+    If $fScale < 0.05 Then $fScale = 0.05
+    If $fScale > 3.0 Then $fScale = 3.0
+
+    ; Zentriere das Layout optimal (identisch mit _DrawMonitors)
+    Local $iScaledWidth = $iTotalWidth * $fScale
+    Local $iScaledHeight = $iTotalHeight * $fScale
+    Local $iOffsetX = ($g_iVisWidth - $iScaledWidth) / 2
+    Local $iOffsetY = 30 + ($iAvailableHeight - $iScaledHeight) / 2  ; 30px für Titel + zentriert im Rest
 
     ; Skalierte Koordinaten (mit Offset für negative Koordinaten)
     Local $iX = $iOffsetX + (($aPos[0] - $iMinX) * $fScale)
@@ -321,7 +354,7 @@ Func _DrawInfoText()
     Local $hStringFormat = _GDIPlus_StringFormatCreate()
 
     ; Titel
-    Local $tLayout = _GDIPlus_RectFCreate(10, 10, $g_iVisWidth - 20, 20)
+    Local $tLayout = _GDIPlus_RectFCreate(5, 5, $g_iVisWidth - 10, 20)
     _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, "Monitor Layout Visualisierung", $hFont, $tLayout, $hStringFormat, $hBrush)
 
     ; Status-Info
@@ -330,7 +363,7 @@ Func _DrawInfoText()
     $sStatus &= " | Position: " & $g_sWindowIsAt
     $sStatus &= " | Monitor: " & $g_iCurrentScreenNumber
 
-    $tLayout = _GDIPlus_RectFCreate(10, $g_iVisHeight - 25, $g_iVisWidth - 20, 20)
+    $tLayout = _GDIPlus_RectFCreate(5, $g_iVisHeight - 25, $g_iVisWidth - 10, 20)
     _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sStatus, $hFontSmall, $tLayout, $hStringFormat, $hBrush)
 
     _GDIPlus_BrushDispose($hBrush)
@@ -342,7 +375,43 @@ EndFunc
 ; Aktualisiert die Visualisierung
 Func _UpdateVisualization()
     If Not IsHWnd($g_hVisualizerGUI) Then Return
-    
+
+    ; Prüfe auf Monitor-Konfigurationsänderungen
+    Static $iLastMonitorCount = 0
+    Static $sLastMonitorConfig = ""
+
+    ; Hole aktuelle Monitor-Konfiguration
+    Local $aCurrentMonitors = _GetMonitors()
+    Local $iCurrentCount = $aCurrentMonitors[0][0]
+    Local $sCurrentConfig = ""
+
+    ; Erstelle Config-String zur Änderungserkennung
+    For $i = 1 To $iCurrentCount
+        $sCurrentConfig &= $aCurrentMonitors[$i][0] & "x" & $aCurrentMonitors[$i][1] & "@" & $aCurrentMonitors[$i][2] & "," & $aCurrentMonitors[$i][3] & "|"
+    Next
+
+    ; Prüfe auf Änderungen
+    If $iCurrentCount <> $iLastMonitorCount Or $sCurrentConfig <> $sLastMonitorConfig Then
+        _LogInfo("Monitor-Konfiguration geändert! Anzahl: " & $iLastMonitorCount & " -> " & $iCurrentCount)
+        _LogInfo("Neue Konfiguration: " & $sCurrentConfig)
+
+        ; WICHTIG: Visualizer komplett leeren vor Neuzeichnung
+        _ClearVisualization()
+
+        ; Aktualisiere globale Monitor-Daten
+        $g_aMonitors = $aCurrentMonitors
+        $g_iMonitorCount = $iCurrentCount
+
+        ; Berechne Skalierung neu
+        _CalculateScale()
+
+        ; Merke neue Konfiguration
+        $iLastMonitorCount = $iCurrentCount
+        $sLastMonitorConfig = $sCurrentConfig
+
+        _LogInfo("Visualisierung gesäubert und automatisch aktualisiert")
+    EndIf
+
     ; Aktualisiere aktuellen Monitor basierend auf GUI-Position
     If IsHWnd($g_hMainGUI) Then
         Local $aPos = WinGetPos($g_hMainGUI)
@@ -354,8 +423,32 @@ Func _UpdateVisualization()
             EndIf
         EndIf
     EndIf
-    
+
     _DrawVisualization()
+EndFunc
+
+; Säubert die Visualisierung (leert den Bildschirm)
+Func _ClearVisualization()
+    If Not IsHWnd($g_hVisualizerGUI) Then Return
+
+    _LogDebug("Säubere Visualizer-Bildschirm...")
+
+    ; Leere den Back-Buffer komplett
+    If $g_hBackBuffer Then
+        _GDIPlus_GraphicsClear($g_hBackBuffer, $COLOR_BACKGROUND)
+    EndIf
+
+    ; Leere auch den Haupt-Graphics-Kontext
+    If $g_hGraphics Then
+        _GDIPlus_GraphicsClear($g_hGraphics, $COLOR_BACKGROUND)
+    EndIf
+
+    ; Sofortige Bildschirm-Aktualisierung
+    If $g_hGraphics And $g_hBitmap Then
+        _GDIPlus_GraphicsDrawImage($g_hGraphics, $g_hBitmap, 0, 0)
+    EndIf
+
+    _LogDebug("Visualizer-Bildschirm gesäubert")
 EndFunc
 
 ; Schließt die Visualisierung

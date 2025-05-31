@@ -226,16 +226,36 @@ Func _GetMonitorsExtended()
                                             "dword dmPositionX;dword dmPositionY")
             DllStructSetData($tDevMode, "dmSize", DllStructGetSize($tDevMode))
 
+            ; Versuche zuerst die physische Auflösung zu ermitteln
+            Local $aPhysical = _GetPhysicalResolution($sDeviceName)
+            Local $iPhysWidth = $aPhysical[0]
+            Local $iPhysHeight = $aPhysical[1]
+            
             Local $aEnum = DllCall("user32.dll", "bool", "EnumDisplaySettingsW", "wstr", $sDeviceName, "dword", -1, "struct*", $tDevMode)
             If Not @error And $aEnum[0] Then
                 $iDisplayCount += 1
                 ReDim $aDisplays[$iDisplayCount + 1][6]
 
                 $aDisplays[$iDisplayCount][0] = $sDeviceName
-                $aDisplays[$iDisplayCount][1] = DllStructGetData($tDevMode, "dmPositionX")
-                $aDisplays[$iDisplayCount][2] = DllStructGetData($tDevMode, "dmPositionY")
-                $aDisplays[$iDisplayCount][3] = DllStructGetData($tDevMode, "dmPelsWidth")
-                $aDisplays[$iDisplayCount][4] = DllStructGetData($tDevMode, "dmPelsHeight")
+                
+                Local $iEffectiveWidth = DllStructGetData($tDevMode, "dmPelsWidth")
+                Local $iEffectiveHeight = DllStructGetData($tDevMode, "dmPelsHeight")
+                Local $iPositionX = DllStructGetData($tDevMode, "dmPositionX")
+                Local $iPositionY = DllStructGetData($tDevMode, "dmPositionY")
+                
+                ; Für den Visualizer: Verwende IMMER die effektiven Werte für korrekte Positionierung
+                ; Dies entspricht genau dem was Windows in den Anzeigeeinstellungen zeigt
+                $aDisplays[$iDisplayCount][1] = $iPositionX
+                $aDisplays[$iDisplayCount][2] = $iPositionY
+                $aDisplays[$iDisplayCount][3] = $iEffectiveWidth
+                $aDisplays[$iDisplayCount][4] = $iEffectiveHeight
+                
+                _LogDebug("Monitor " & $iDisplayCount & " - Effektive Auflösung: " & $iEffectiveWidth & "x" & $iEffectiveHeight)
+                _LogDebug("Monitor " & $iDisplayCount & " - Position: " & $iPositionX & "," & $iPositionY)
+                If $iPhysWidth > 0 And $iPhysHeight > 0 Then
+                    _LogDebug("Monitor " & $iDisplayCount & " - Physische Auflösung verfügbar: " & $iPhysWidth & "x" & $iPhysHeight & " (nicht verwendet für Positionierung)")
+                EndIf
+                
                 $aDisplays[$iDisplayCount][5] = BitAND($iStateFlags, 0x00000004) ? 1 : 0 ; DISPLAY_DEVICE_PRIMARY_DEVICE
 
                 _LogDebug("Monitor " & $iDisplayCount & ": " & $sDeviceName & " @ " & _
@@ -273,6 +293,10 @@ Func _GetMonitorsExtended()
         $aMonitors[$i][2] = $aDisplays[$i][1] ; Left
         $aMonitors[$i][3] = $aDisplays[$i][2] ; Top
     Next
+    
+    ; DEAKTIVIERT: Korrigiere die Positionierung für physische Auflösungen
+    ; Die Windows-Positionen sind korrekt und sollen nicht überschrieben werden
+    ; _CorrectMonitorPositions($aMonitors, $aDisplays)
 
     $g_iMonitorCount = $iDisplayCount
     $g_aMonitors = $aMonitors
@@ -694,6 +718,180 @@ Func _GetPhysicalPositionByWindowsMonitor($iWindowsMonitor)
         EndIf
     Next
     Return 0
+EndFunc
+
+; Ermittelt die physische (native) Auflösung eines Monitors
+Func _GetPhysicalResolution($sDeviceName)
+    _LogDebug("Ermittle physische Auflösung für: " & $sDeviceName)
+    
+    Local $iMaxWidth = 0, $iMaxHeight = 0
+    Local $iModeNum = 0
+    
+    ; DEVMODE Struktur
+    Local $tDevMode = DllStructCreate("wchar dmDeviceName[32];word dmSpecVersion;word dmDriverVersion;word dmSize;word dmDriverExtra;dword dmFields;" & _
+                                    "short dmOrientation;short dmPaperSize;short dmPaperLength;short dmPaperWidth;short dmScale;short dmCopies;" & _
+                                    "short dmDefaultSource;short dmPrintQuality;short dmColor;short dmDuplex;short dmYResolution;short dmTTOption;" & _
+                                    "short dmCollate;wchar dmFormName[32];word dmLogPixels;dword dmBitsPerPel;dword dmPelsWidth;dword dmPelsHeight;" & _
+                                    "dword dmDisplayFlags;dword dmDisplayFrequency;dword dmICMMethod;dword dmICMIntent;dword dmMediaType;" & _
+                                    "dword dmDitherType;dword dmReserved1;dword dmReserved2;dword dmPanningWidth;dword dmPanningHeight;" & _
+                                    "dword dmPositionX;dword dmPositionY")
+    
+    ; Durchlaufe alle verfügbaren Display-Modi
+    While 1
+        DllStructSetData($tDevMode, "dmSize", DllStructGetSize($tDevMode))
+        
+        ; Hole nächsten Display-Modus
+        Local $aResult = DllCall("user32.dll", "bool", "EnumDisplaySettingsW", "wstr", $sDeviceName, "dword", $iModeNum, "struct*", $tDevMode)
+        If @error Or Not $aResult[0] Then ExitLoop
+        
+        Local $iWidth = DllStructGetData($tDevMode, "dmPelsWidth")
+        Local $iHeight = DllStructGetData($tDevMode, "dmPelsHeight")
+        Local $iBitsPerPel = DllStructGetData($tDevMode, "dmBitsPerPel")
+        Local $iFrequency = DllStructGetData($tDevMode, "dmDisplayFrequency")
+        
+        ; Nur echte Farbtiefen berücksichtigen (32 bit oder 24 bit)
+        If $iBitsPerPel >= 24 Then
+            ; Suche höchste Auflösung
+            If ($iWidth * $iHeight) > ($iMaxWidth * $iMaxHeight) Then
+                $iMaxWidth = $iWidth
+                $iMaxHeight = $iHeight
+                _LogDebug("Neue maximale Auflösung gefunden: " & $iWidth & "x" & $iHeight & " @ " & $iFrequency & "Hz, " & $iBitsPerPel & "bit")
+            EndIf
+        EndIf
+        
+        $iModeNum += 1
+    WEnd
+    
+    If $iMaxWidth > 0 And $iMaxHeight > 0 Then
+        _LogDebug("Physische Auflösung für " & $sDeviceName & ": " & $iMaxWidth & "x" & $iMaxHeight)
+    Else
+        _LogWarning("Keine physische Auflösung für " & $sDeviceName & " gefunden")
+    EndIf
+    
+    Local $aResult[2] = [$iMaxWidth, $iMaxHeight]
+    Return $aResult
+EndFunc
+
+; Korrigiert Monitor-Positionen basierend auf physischen vs. effektiven Auflösungen
+Func _CorrectMonitorPositions(ByRef $aMonitors, ByRef $aDisplays)
+    _LogDebug("Korrigiere Monitor-Positionen für physische Auflösungen...")
+    
+    If $aDisplays[0][0] < 2 Then
+        _LogDebug("Weniger als 2 Monitore - keine Positionskorrektur erforderlich")
+        Return
+    EndIf
+    
+    ; Sammle ursprüngliche (effektive) Positionen und berechne Skalierungsfaktoren
+    Local $aOriginalInfo[$aDisplays[0][0] + 1][6]  ; [index][origX, origY, origW, origH, scaleX, scaleY]
+    
+    For $i = 1 To $aDisplays[0][0]
+        ; Hole ursprüngliche effektive Werte aus der ersten Erkennung
+        Local $tDevMode = DllStructCreate("wchar dmDeviceName[32];word dmSpecVersion;word dmDriverVersion;word dmSize;word dmDriverExtra;dword dmFields;" & _
+                                        "short dmOrientation;short dmPaperSize;short dmPaperLength;short dmPaperWidth;short dmScale;short dmCopies;" & _
+                                        "short dmDefaultSource;short dmPrintQuality;short dmColor;short dmDuplex;short dmYResolution;short dmTTOption;" & _
+                                        "short dmCollate;wchar dmFormName[32];word dmLogPixels;dword dmBitsPerPel;dword dmPelsWidth;dword dmPelsHeight;" & _
+                                        "dword dmDisplayFlags;dword dmDisplayFrequency;dword dmICMMethod;dword dmICMIntent;dword dmMediaType;" & _
+                                        "dword dmDitherType;dword dmReserved1;dword dmReserved2;dword dmPanningWidth;dword dmPanningHeight;" & _
+                                        "dword dmPositionX;dword dmPositionY")
+        DllStructSetData($tDevMode, "dmSize", DllStructGetSize($tDevMode))
+        
+        Local $aEnum = DllCall("user32.dll", "bool", "EnumDisplaySettingsW", "wstr", $aDisplays[$i][0], "dword", -1, "struct*", $tDevMode)
+        If Not @error And $aEnum[0] Then
+            $aOriginalInfo[$i][0] = DllStructGetData($tDevMode, "dmPositionX")      ; Original X
+            $aOriginalInfo[$i][1] = DllStructGetData($tDevMode, "dmPositionY")      ; Original Y  
+            $aOriginalInfo[$i][2] = DllStructGetData($tDevMode, "dmPelsWidth")      ; Original Width
+            $aOriginalInfo[$i][3] = DllStructGetData($tDevMode, "dmPelsHeight")     ; Original Height
+            $aOriginalInfo[$i][4] = $aMonitors[$i][0] / $aOriginalInfo[$i][2]       ; Scale X
+            $aOriginalInfo[$i][5] = $aMonitors[$i][1] / $aOriginalInfo[$i][3]       ; Scale Y
+            
+            _LogDebug("Monitor " & $i & " Original: " & $aOriginalInfo[$i][0] & "," & $aOriginalInfo[$i][1] & " " & $aOriginalInfo[$i][2] & "x" & $aOriginalInfo[$i][3])
+            _LogDebug("Monitor " & $i & " Physisch: " & $aMonitors[$i][0] & "x" & $aMonitors[$i][1] & " Scale: " & $aOriginalInfo[$i][4] & "x" & $aOriginalInfo[$i][5])
+        EndIf
+    Next
+    
+    ; Sortiere Monitore nach X-Position (links nach rechts)
+    Local $aSortedIndices[$aDisplays[0][0] + 1]
+    For $i = 1 To $aDisplays[0][0]
+        $aSortedIndices[$i] = $i
+    Next
+    
+    ; Bubble Sort nach Original-X-Position
+    For $i = 1 To $aDisplays[0][0] - 1
+        For $j = $i + 1 To $aDisplays[0][0]
+            If $aOriginalInfo[$aSortedIndices[$j]][0] < $aOriginalInfo[$aSortedIndices[$i]][0] Then
+                Local $temp = $aSortedIndices[$i]
+                $aSortedIndices[$i] = $aSortedIndices[$j]
+                $aSortedIndices[$j] = $temp
+            EndIf
+        Next
+    Next
+    
+    _LogDebug("Sortierte Reihenfolge (links nach rechts):")
+    For $i = 1 To $aDisplays[0][0]
+        Local $idx = $aSortedIndices[$i]
+        _LogDebug("Position " & $i & ": Monitor " & $idx & " @ X=" & $aOriginalInfo[$idx][0])
+    Next
+    
+    ; Neu-Positionierung: Baue Layout von links nach rechts auf
+    Local $iCurrentX = 0
+    
+    ; Spezielle Behandlung für 3-Monitor-Setup mit mittlerem Monitor
+    If $aDisplays[0][0] = 3 Then
+        ; Finde den mittleren Monitor (der mit X-Position zwischen den anderen beiden)
+        Local $iLeftIdx = $aSortedIndices[1]
+        Local $iMiddleIdx = $aSortedIndices[2] 
+        Local $iRightIdx = $aSortedIndices[3]
+        
+        _LogDebug("3-Monitor Setup erkannt:")
+        _LogDebug("Links: Monitor " & $iLeftIdx & " @ X=" & $aOriginalInfo[$iLeftIdx][0])
+        _LogDebug("Mitte: Monitor " & $iMiddleIdx & " @ X=" & $aOriginalInfo[$iMiddleIdx][0])
+        _LogDebug("Rechts: Monitor " & $iRightIdx & " @ X=" & $aOriginalInfo[$iRightIdx][0])
+        
+        ; Positioniere links
+        $aMonitors[$iLeftIdx][2] = 0
+        $aMonitors[$iLeftIdx][3] = 0  ; Baseline
+        
+        ; Positioniere mitte (Monitor 1 ist zentriert)
+        $aMonitors[$iMiddleIdx][2] = $aMonitors[$iLeftIdx][0]
+        ; Y-Position für Zentrierung zwischen anderen Monitoren
+        Local $iHeightDiff = ($aMonitors[$iLeftIdx][1] - $aMonitors[$iMiddleIdx][1]) / 2
+        $aMonitors[$iMiddleIdx][3] = $iHeightDiff
+        
+        ; Positioniere rechts  
+        $aMonitors[$iRightIdx][2] = $aMonitors[$iLeftIdx][0] + $aMonitors[$iMiddleIdx][0]
+        $aMonitors[$iRightIdx][3] = 0  ; Gleiche Baseline wie links
+        
+        _LogDebug("Monitor " & $iLeftIdx & " (links) positioniert: X=" & $aMonitors[$iLeftIdx][2] & ", Y=" & $aMonitors[$iLeftIdx][3])
+        _LogDebug("Monitor " & $iMiddleIdx & " (mitte) positioniert: X=" & $aMonitors[$iMiddleIdx][2] & ", Y=" & $aMonitors[$iMiddleIdx][3])
+        _LogDebug("Monitor " & $iRightIdx & " (rechts) positioniert: X=" & $aMonitors[$iRightIdx][2] & ", Y=" & $aMonitors[$iRightIdx][3])
+    Else
+        ; Standard-Layout für andere Konfigurationen
+        Local $iBaselineY = 0  ; Y-Baseline für Ausrichtung
+        
+        ; Bestimme Baseline (niedrigster Y-Wert)
+        For $i = 1 To $aDisplays[0][0]
+            Local $idx = $aSortedIndices[$i]
+            If $aOriginalInfo[$idx][1] < $iBaselineY Then $iBaselineY = $aOriginalInfo[$idx][1]
+        Next
+        
+        For $i = 1 To $aDisplays[0][0]
+            Local $idx = $aSortedIndices[$i]
+            
+            ; X-Position: Direkt aneinander angrenzend
+            $aMonitors[$idx][2] = $iCurrentX
+            
+            ; Y-Position: Beibehalten der relativen vertikalen Ausrichtung
+            Local $iOriginalRelativeY = $aOriginalInfo[$idx][1] - $iBaselineY
+            $aMonitors[$idx][3] = $iOriginalRelativeY
+            
+            _LogDebug("Monitor " & $idx & " neu positioniert: X=" & $aMonitors[$idx][2] & ", Y=" & $aMonitors[$idx][3])
+            
+            ; Nächste X-Position für den folgenden Monitor
+            $iCurrentX += $aMonitors[$idx][0]
+        Next
+    EndIf
+    
+    _LogDebug("Positionskorrektur abgeschlossen - Monitore aneinander angrenzend angeordnet")
 EndFunc
 
 ; Gibt den physisch linken Nachbar-Monitor zurück
