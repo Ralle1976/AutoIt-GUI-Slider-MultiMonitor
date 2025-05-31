@@ -81,7 +81,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewX = $aWindowPos[0] - ($iStepSize * $i)
                     WinMove($hWindow, "", $iNewX, $aWindowPos[1])
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             Else
@@ -92,7 +92,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewX = $aWindowPos[0] + ($iStepSize * $i)
                     WinMove($hWindow, "", $iNewX, $aWindowPos[1])
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             EndIf
@@ -106,7 +106,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewX = $aWindowPos[0] + ($iStepSize * $i)
                     WinMove($hWindow, "", $iNewX, $aWindowPos[1])
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             Else
@@ -117,7 +117,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewX = $aWindowPos[0] - ($iStepSize * $i)
                     WinMove($hWindow, "", $iNewX, $aWindowPos[1])
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             EndIf
@@ -131,7 +131,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewY = $aWindowPos[1] - ($iStepSize * $i)
                     WinMove($hWindow, "", $aWindowPos[0], $iNewY)
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             Else
@@ -142,7 +142,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewY = $aWindowPos[1] + ($iStepSize * $i)
                     WinMove($hWindow, "", $aWindowPos[0], $iNewY)
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             EndIf
@@ -156,7 +156,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewY = $aWindowPos[1] + ($iStepSize * $i)
                     WinMove($hWindow, "", $aWindowPos[0], $iNewY)
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             Else
@@ -167,7 +167,7 @@ Func __PerformSlideAnimation($hWindow, $iScreenNum, $sSide, $sInOrOut)
                 For $i = 0 To 10
                     Local $iNewY = $aWindowPos[1] - ($iStepSize * $i)
                     WinMove($hWindow, "", $aWindowPos[0], $iNewY)
-                    _UpdateVisualization()
+                    _UpdateVisualizationWin11()
                     Sleep(20)
                 Next
             EndIf
