@@ -16,7 +16,7 @@
 #include "modules\ConfigManager.au3"
 #include "modules\GUIControl.au3"
 #include "modules\Logging.au3"
-#include "modules\VisualizationWin11.au3"
+#include "modules\Visualization.au3"
 
 ; ==========================================
 ; Hauptprogramm
@@ -126,7 +126,7 @@ Func _Main()
 
         ; Visualisierung regelmäßig aktualisieren
         If TimerDiff($iVisUpdate) > 100 Then  ; Alle 100ms
-            _UpdateVisualizationWin11()
+            _UpdateVisualization()
 
             ; Automatische GUI-Wiederherstellung wenn außerhalb
             Local $aPos = WinGetPos($g_hMainGUI)
@@ -183,7 +183,7 @@ Func _InitializeSystem()
     EndIf
 
     ; Visualisierung initialisieren
-    If Not _InitVisualizationWin11() Then
+    If Not _InitVisualization() Then
         _LogWarning("Visualisierung konnte nicht initialisiert werden")
     EndIf
 
@@ -297,7 +297,7 @@ Func _Cleanup()
     HotKeySet("!{End}")
 
     ; Visualisierung schließen
-    _CloseVisualizationWin11()
+    _CloseVisualization()
 
     ; GUI aufräumen
     _DestroyGUI()

@@ -41,6 +41,7 @@ Global $g_iLastMonitor = 1               ; Letzter verwendeter Monitor
 Global $g_bClassicSliderMode = False     ; Klassischer Slider-Modus (2 Klicks)
 Global $g_bDirectSlideMode = False       ; Direct Slide Modus (ignoriert Nachbarn)
 Global $g_bContinuousSlideMode = False   ; Continuous Slide Modus (kontinuierliche Fahrt)
+Global $g_bAutoSlideMode = False         ; Auto-Slide Modus (automatisches Ein-/Ausfahren)
 #EndRegion Global Variables - Configuration
 
 #Region Global Variables - GUI Controls

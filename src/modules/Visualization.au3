@@ -2,13 +2,17 @@
 #include <GDIPlus.au3>
 #include <WindowsConstants.au3>
 #include <GUIConstantsEx.au3>
+#include <Math.au3>
+#include <WinAPIGdi.au3>
+#include <WinAPIGdiDC.au3>
+#include <WinAPISysWin.au3>
 #include "..\includes\GlobalVars.au3"
 #include "..\includes\Constants.au3"
 #include "MonitorDetection.au3"
 #include "Logging.au3"
 
 ; ==========================================
-; Monitor Visualisierung mit GDI+
+; Windows 11 Style Monitor Visualisierung
 ; ==========================================
 
 Global $g_hVisualizerGUI = 0
@@ -19,25 +23,32 @@ Global $g_iVisWidth = 600
 Global $g_iVisHeight = 400
 Global $g_fScale = 0.1  ; Skalierungsfaktor für die Darstellung
 
-; Farben
-;~ Global Const $COLOR_BACKGROUND = 0xFF1E1E1E
-Global Const $COLOR_MONITOR = 0xFF2D2D30
-Global Const $COLOR_MONITOR_ACTIVE = 0xFF007ACC
-Global Const $COLOR_GUI_WINDOW = 0xFF00FF00
-Global Const $COLOR_GUI_SLIDING = 0xFFFF0000
-Global Const $COLOR_TEXT = 0xFFFFFFFF
-Global Const $COLOR_GRID = 0xFF3E3E42
+; Windows 11 Farben
+Global Const $COLOR_WIN11_BG = 0xFFF3F3F3        ; Heller Hintergrund
+Global Const $COLOR_WIN11_MONITOR = 0xFF0078D4   ; Windows Blau
+Global Const $COLOR_WIN11_SELECTED = 0xFF005A9E  ; Dunkleres Blau für Auswahl
+Global Const $COLOR_WIN11_BORDER = 0xFFD6D6D6    ; Monitor-Rand
+Global Const $COLOR_WIN11_TEXT = 0xFFFFFFFF      ; Weißer Text
+Global Const $COLOR_WIN11_SHADOW = 0x20000000    ; Leichter Schatten
 
-; Initialisiert die Visualisierung
+
+; Monitor-Skalierungsfaktoren
+Global $g_aMonitorScaling[13] ; DPI-Skalierung pro Monitor
+
+; Hover-Status
+Global $g_iHoveredMonitor = 0
+Global $g_iLastHoveredMonitor = 0
+
+; Initialisiert die Windows 11 Style Visualisierung
 Func _InitVisualization()
-    _LogInfo("Initialisiere Monitor-Visualisierung...")
+    _LogInfo("Initialisiere Windows 11 Style Monitor-Visualisierung...")
 
     ; GDI+ initialisieren
     _GDIPlus_Startup()
 
     ; Visualisierungs-GUI erstellen
-    $g_hVisualizerGUI = GUICreate("Monitor Layout - GUI Slider", $g_iVisWidth, $g_iVisHeight, -1, -1, _
-                                  BitOR($WS_POPUP, $WS_BORDER), $WS_EX_TOOLWINDOW)
+    $g_hVisualizerGUI = GUICreate("Anzeigeeinstellungen - GUI Slider", $g_iVisWidth, $g_iVisHeight, -1, -1, _
+                                  BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOOLWINDOW, $WS_EX_TOPMOST))
 
     If Not IsHWnd($g_hVisualizerGUI) Then
         _LogError("Konnte Visualisierungs-GUI nicht erstellen")
@@ -50,7 +61,8 @@ Func _InitVisualization()
     $g_hBackBuffer = _GDIPlus_ImageGetGraphicsContext($g_hBitmap)
 
     ; Anti-Aliasing aktivieren
-    _GDIPlus_GraphicsSetSmoothingMode($g_hBackBuffer, 2)
+    _GDIPlus_GraphicsSetSmoothingMode($g_hBackBuffer, 4) ; SmoothingModeAntiAlias8x8
+    _GDIPlus_GraphicsSetTextRenderingHint($g_hBackBuffer, 5) ; TextRenderingHintAntiAliasGridFit
 
     ; Skalierung berechnen
     _CalculateScale()
@@ -60,10 +72,15 @@ Func _InitVisualization()
     Local $iY = @DesktopHeight - $g_iVisHeight - 60
     WinMove($g_hVisualizerGUI, "", $iX, $iY)
 
+    ; Message-Handler registrieren
+    GUIRegisterMsg($WM_LBUTTONDOWN, "_OnVisualizerClick")
+    GUIRegisterMsg($WM_MOUSEMOVE, "_OnVisualizerMouseMove")
+    GUIRegisterMsg($WM_MOUSELEAVE, "_OnVisualizerMouseLeave")
+
     ; GUI anzeigen
     GUISetState(@SW_SHOW, $g_hVisualizerGUI)
 
-    _LogInfo("Monitor-Visualisierung initialisiert")
+    _LogInfo("Windows 11 Style Monitor-Visualisierung initialisiert")
     Return True
 EndFunc
 
@@ -73,6 +90,9 @@ Func _CalculateScale()
         _LogError("_CalculateScale: Keine Monitor-Daten verfügbar")
         Return
     EndIf
+
+    ; Berechne DPI-Skalierung für jeden Monitor
+    _CalculateMonitorScaling()
 
     ; Finde die Gesamtgröße aller Monitore
     Local $iMinX = 99999, $iMinY = 99999
@@ -88,27 +108,66 @@ Func _CalculateScale()
     Local $iTotalWidth = $iMaxX - $iMinX
     Local $iTotalHeight = $iMaxY - $iMinY
 
-    ; Skalierung mit etwas Rand berechnen
-    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
-    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
+    ; Skalierung mit mehr Rand berechnen (Windows 11 Style)
+    Local $iAvailableWidth = $g_iVisWidth - 80   ; 40px Rand links und rechts
+    Local $iAvailableHeight = $g_iVisHeight - 120  ; 60px oben und unten
 
     Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
     Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
 
     $g_fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
+    
+    ; Begrenze Skalierung
+    If $g_fScale < 0.05 Then $g_fScale = 0.05
+    If $g_fScale > 2.0 Then $g_fScale = 2.0  ; Nicht zu groß
 
-    _LogDebug("Visualisierungs-Skalierung: " & $g_fScale)
+    _LogDebug("Windows 11 Visualisierungs-Skalierung: " & $g_fScale)
 EndFunc
 
-; Zeichnet die Visualisierung
+; Berechnet DPI-Skalierung für jeden Monitor
+Func _CalculateMonitorScaling()
+    For $i = 1 To $g_iMonitorCount
+        $g_aMonitorScaling[$i] = 1.0 ; Default 100%
+        
+        ; Erkenne typische DPI-Skalierungen
+        If UBound($g_aMonitorDetails) > $i Then
+            Local $sDeviceName = $g_aMonitorDetails[$i][0]
+            Local $aPhysical = _GetPhysicalResolution($sDeviceName)
+            
+            If $aPhysical[0] > 0 And $aPhysical[1] > 0 Then
+                ; Berechne Skalierung aus Verhältnis physisch zu effektiv
+                Local $fScaleX = $aPhysical[0] / $g_aMonitors[$i][0]
+                Local $fScaleY = $aPhysical[1] / $g_aMonitors[$i][1]
+                
+                ; Runde auf typische Windows-Skalierungen
+                Local $fAvgScale = ($fScaleX + $fScaleY) / 2
+                If $fAvgScale >= 0.95 And $fAvgScale <= 1.05 Then
+                    $g_aMonitorScaling[$i] = 1.0   ; 100%
+                ElseIf $fAvgScale >= 1.20 And $fAvgScale <= 1.30 Then
+                    $g_aMonitorScaling[$i] = 1.25  ; 125%
+                ElseIf $fAvgScale >= 1.45 And $fAvgScale <= 1.55 Then
+                    $g_aMonitorScaling[$i] = 1.5   ; 150%
+                ElseIf $fAvgScale >= 1.70 And $fAvgScale <= 1.80 Then
+                    $g_aMonitorScaling[$i] = 1.75  ; 175%
+                ElseIf $fAvgScale >= 1.95 And $fAvgScale <= 2.05 Then
+                    $g_aMonitorScaling[$i] = 2.0   ; 200%
+                EndIf
+                
+                _LogDebug("Monitor " & $i & " DPI-Skalierung: " & Int($g_aMonitorScaling[$i] * 100) & "%")
+            EndIf
+        EndIf
+    Next
+EndFunc
+
+; Zeichnet die Windows 11 Style Visualisierung
 Func _DrawVisualization()
     If Not IsHWnd($g_hVisualizerGUI) Then Return
 
-    ; Clear background
-    _GDIPlus_GraphicsClear($g_hBackBuffer, $COLOR_BACKGROUND)
+    ; Clear background mit Windows 11 Farbe
+    _GDIPlus_GraphicsClear($g_hBackBuffer, $COLOR_WIN11_BG)
 
-    ; Zeichne Grid
-    _DrawGrid()
+    ; Zeichne Titel
+    _DrawTitle()
 
     ; Zeichne Monitore
     _DrawMonitors()
@@ -116,52 +175,40 @@ Func _DrawVisualization()
     ; Zeichne GUI-Position
     _DrawGUIWindow()
 
-    ; Zeichne Info-Text
-    _DrawInfoText()
+    ; Zeichne Identifizieren-Button
+    _DrawIdentifyButton()
 
     ; Buffer auf Bildschirm kopieren
     _GDIPlus_GraphicsDrawImage($g_hGraphics, $g_hBitmap, 0, 0)
 EndFunc
 
-; Zeichnet das Hintergrund-Grid
-Func _DrawGrid()
-    Local $hPen = _GDIPlus_PenCreate($COLOR_GRID, 1)
-
-    ; Vertikale Linien
-    For $i = 0 To $g_iVisWidth Step 50
-        _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $i, 0, $i, $g_iVisHeight, $hPen)
-    Next
-
-    ; Horizontale Linien
-    For $i = 0 To $g_iVisHeight Step 50
-        _GDIPlus_GraphicsDrawLine($g_hBackBuffer, 0, $i, $g_iVisWidth, $i, $hPen)
-    Next
-
-    _GDIPlus_PenDispose($hPen)
+; Zeichnet den Titel im Windows 11 Style
+Func _DrawTitle()
+    Local $hBrush = _GDIPlus_BrushCreateSolid(0xFF000000) ; Schwarz
+    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 14, 0)
+    Local $hFormat = _GDIPlus_StringFormatCreate()
+    
+    Local $tLayout = _GDIPlus_RectFCreate(40, 20, $g_iVisWidth - 80, 30)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, "Anzeigeeinstellungen", $hFont, $tLayout, $hFormat, $hBrush)
+    
+    ; Untertitel
+    Local $hFontSmall = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 11, 0)
+    Local $hBrushGray = _GDIPlus_BrushCreateSolid(0xFF666666)
+    $tLayout = _GDIPlus_RectFCreate(40, 45, $g_iVisWidth - 80, 20)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, "Monitor-Layout", $hFontSmall, $tLayout, $hFormat, $hBrushGray)
+    
+    _GDIPlus_BrushDispose($hBrush)
+    _GDIPlus_BrushDispose($hBrushGray)
+    _GDIPlus_FontDispose($hFont)
+    _GDIPlus_FontDispose($hFontSmall)
+    _GDIPlus_StringFormatDispose($hFormat)
 EndFunc
 
-; Zeichnet alle Monitore
+; Zeichnet alle Monitore im Windows 11 Style
 Func _DrawMonitors()
-    If Not IsArray($g_aMonitors) Then
-        _LogError("g_aMonitors ist kein Array!")
-        Return
-    EndIf
+    If Not IsArray($g_aMonitors) Or $g_aMonitors[0][0] = 0 Then Return
 
-    If $g_aMonitors[0][0] = 0 Then
-        _LogWarning("Keine Monitore zum Zeichnen vorhanden")
-        Return
-    EndIf
-
-    _LogDebug("Zeichne " & $g_aMonitors[0][0] & " Monitore")
-    _LogDebug("g_aMonitors Array-Dimensionen: " & UBound($g_aMonitors, 1) & "x" & UBound($g_aMonitors, 2))
-
-    ; Debug: Zeige alle Monitor-Daten
-    For $i = 1 To $g_aMonitors[0][0]
-        _LogDebug("Monitor " & $i & ": " & $g_aMonitors[$i][0] & "x" & $g_aMonitors[$i][1] & _
-                 " @ " & $g_aMonitors[$i][2] & "," & $g_aMonitors[$i][3])
-    Next
-
-    ; Berechne Grenzen aller Monitore für optimale Skalierung
+    ; Berechne Grenzen für Zentrierung
     Local $iMinX = 999999, $iMinY = 999999
     Local $iMaxX = -999999, $iMaxY = -999999
 
@@ -175,83 +222,143 @@ Func _DrawMonitors()
     Local $iTotalWidth = $iMaxX - $iMinX
     Local $iTotalHeight = $iMaxY - $iMinY
 
-    ; Berechne optimale Skalierung und Offset
-    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
-    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
-
-    Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
-    Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
-    Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
-    If $fScale < 0.05 Then $fScale = 0.05  ; Mindestgröße für Lesbarkeit
-    If $fScale > 3.0 Then $fScale = 3.0   ; Maximalgröße
-
-    _LogDebug("Optimierte Skalierung - TotalSize: " & $iTotalWidth & "x" & $iTotalHeight & " Available: " & $iAvailableWidth & "x" & $iAvailableHeight)
-    _LogDebug("ScaleX: " & $fScaleX & " ScaleY: " & $fScaleY & " Final: " & $fScale)
-
-    ; Zentriere das Layout optimal
-    Local $iScaledWidth = $iTotalWidth * $fScale
-    Local $iScaledHeight = $iTotalHeight * $fScale
+    ; Zentriere das Layout
+    Local $iScaledWidth = $iTotalWidth * $g_fScale
+    Local $iScaledHeight = $iTotalHeight * $g_fScale
     Local $iOffsetX = ($g_iVisWidth - $iScaledWidth) / 2
-    Local $iOffsetY = 30 + ($iAvailableHeight - $iScaledHeight) / 2  ; 30px für Titel + zentriert im Rest
+    Local $iOffsetY = 80 + (($g_iVisHeight - 160) - $iScaledHeight) / 2
 
-    ; Brushes und Pens
-    Local $hBrushInactive = _GDIPlus_BrushCreateSolid($COLOR_MONITOR)
-    Local $hBrushActive = _GDIPlus_BrushCreateSolid($COLOR_MONITOR_ACTIVE)
-    Local $hPenBorder = _GDIPlus_PenCreate(0xFF808080, 2)
-    Local $hBrushText = _GDIPlus_BrushCreateSolid($COLOR_TEXT)
-    ; Größere Schrift basierend auf Monitor-Größe
-    Local $iFontSize = Int($fScale * 12)
-    If $iFontSize < 10 Then $iFontSize = 10  ; Minimum für Lesbarkeit
-    If $iFontSize > 20 Then $iFontSize = 20  ; Maximum
-    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Arial"), $iFontSize, 1)
-    Local $hStringFormat = _GDIPlus_StringFormatCreate()
-    _GDIPlus_StringFormatSetAlign($hStringFormat, 1)  ; Center align
-
+    ; Zeichne jeden Monitor
     For $i = 1 To $g_aMonitors[0][0]
-        ; Skalierte Koordinaten (mit Offset für negative Koordinaten)
-        Local $iX = $iOffsetX + (($g_aMonitors[$i][2] - $iMinX) * $fScale)
-        Local $iY = $iOffsetY + (($g_aMonitors[$i][3] - $iMinY) * $fScale)
-        Local $iW = $g_aMonitors[$i][0] * $fScale
-        Local $iH = $g_aMonitors[$i][1] * $fScale
+        Local $iX = $iOffsetX + (($g_aMonitors[$i][2] - $iMinX) * $g_fScale)
+        Local $iY = $iOffsetY + (($g_aMonitors[$i][3] - $iMinY) * $g_fScale)
+        Local $iW = $g_aMonitors[$i][0] * $g_fScale
+        Local $iH = $g_aMonitors[$i][1] * $g_fScale
 
-        _LogDebug("Monitor " & $i & " - Zeichne bei X=" & $iX & ", Y=" & $iY & ", W=" & $iW & ", H=" & $iH)
+        ; Zeichne Monitor-Schatten
+        Local $hBrushShadow = _GDIPlus_BrushCreateSolid($COLOR_WIN11_SHADOW)
+        _GDIPlus_GraphicsFillRect($g_hBackBuffer, $iX + 2, $iY + 2, $iW, $iH, $hBrushShadow)
+        _GDIPlus_BrushDispose($hBrushShadow)
 
-        ; Monitor-Rechteck zeichnen
-        Local $hBrush = ($i = $g_iCurrentScreenNumber) ? $hBrushActive : $hBrushInactive
-        _GDIPlus_GraphicsFillRect($g_hBackBuffer, $iX, $iY, $iW, $iH, $hBrush)
-        _GDIPlus_GraphicsDrawRect($g_hBackBuffer, $iX, $iY, $iW, $iH, $hPenBorder)
-
-        ; Monitor-Nummer zeichnen (mit Device-Name wenn verfügbar)
-        Local $sMonitorText = "Monitor " & $i
-        If UBound($g_aMonitorDetails) > $i And UBound($g_aMonitorDetails, 2) >= 6 Then
-            Local $iDisplayNum = _ExtractDisplayNumber($g_aMonitorDetails[$i][0])
-            If $iDisplayNum <> 999 Then
-                $sMonitorText = "Display " & $iDisplayNum
-            EndIf
+        ; Monitor-Farbe basierend auf Status
+        Local $iMonitorColor = $COLOR_WIN11_MONITOR
+        If $i = $g_iCurrentScreenNumber Then
+            $iMonitorColor = $COLOR_WIN11_SELECTED
+        ElseIf $i = $g_iHoveredMonitor Then
+            ; Etwas heller bei Hover
+            $iMonitorColor = 0xFF1A86D8
         EndIf
 
-        Local $tLayout = _GDIPlus_RectFCreate($iX, $iY + $iH/2 - 10, $iW, 20)
-        _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sMonitorText, $hFont, $tLayout, $hStringFormat, $hBrushText)
+        ; Zeichne Monitor-Rechteck mit abgerundeten Ecken
+        _DrawRoundedRectangle($iX, $iY, $iW, $iH, 6, $iMonitorColor, $COLOR_WIN11_BORDER)
 
-        ; Auflösung zeichnen
-        $tLayout = _GDIPlus_RectFCreate($iX, $iY + $iH/2 + 10, $iW, 20)
-        Local $sFontFamily = _GDIPlus_FontFamilyCreate("Arial")
-        Local $iFontSizeSmall = Int($iFontSize * 0.8)
-        If $iFontSizeSmall < 8 Then $iFontSizeSmall = 8
-        Local $hFontSmall = _GDIPlus_FontCreate($sFontFamily, $iFontSizeSmall)
-        _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $g_aMonitors[$i][0] & "x" & $g_aMonitors[$i][1], _
-                                     $hFontSmall, $tLayout, $hStringFormat, $hBrushText)
-        _GDIPlus_FontDispose($hFontSmall)
-        _GDIPlus_FontFamilyDispose($sFontFamily)
+        ; Zeichne große Monitor-Nummer
+        _DrawMonitorNumber($i, $iX, $iY, $iW, $iH)
+
+        ; Zeichne Auflösung
+        _DrawMonitorResolution($i, $iX, $iY, $iW, $iH)
     Next
+EndFunc
 
-    ; Aufräumen
-    _GDIPlus_BrushDispose($hBrushInactive)
-    _GDIPlus_BrushDispose($hBrushActive)
-    _GDIPlus_BrushDispose($hBrushText)
-    _GDIPlus_PenDispose($hPenBorder)
+; Zeichnet ein Rechteck mit abgerundeten Ecken
+Func _DrawRoundedRectangle($iX, $iY, $iW, $iH, $iRadius, $iFillColor, $iBorderColor)
+    ; Erstelle Pfad für abgerundete Ecken
+    Local $hPath = _GDIPlus_PathCreate()
+    
+    ; Oben links
+    _GDIPlus_PathAddArc($hPath, $iX, $iY, $iRadius * 2, $iRadius * 2, 180, 90)
+    ; Oben rechts
+    _GDIPlus_PathAddArc($hPath, $iX + $iW - $iRadius * 2, $iY, $iRadius * 2, $iRadius * 2, 270, 90)
+    ; Unten rechts
+    _GDIPlus_PathAddArc($hPath, $iX + $iW - $iRadius * 2, $iY + $iH - $iRadius * 2, $iRadius * 2, $iRadius * 2, 0, 90)
+    ; Unten links
+    _GDIPlus_PathAddArc($hPath, $iX, $iY + $iH - $iRadius * 2, $iRadius * 2, $iRadius * 2, 90, 90)
+    
+    _GDIPlus_PathCloseFigure($hPath)
+
+    ; Fülle den Pfad
+    Local $hBrush = _GDIPlus_BrushCreateSolid($iFillColor)
+    _GDIPlus_GraphicsFillPath($g_hBackBuffer, $hPath, $hBrush)
+    _GDIPlus_BrushDispose($hBrush)
+
+    ; Zeichne Rand
+    Local $hPen = _GDIPlus_PenCreate($iBorderColor, 1)
+    _GDIPlus_GraphicsDrawPath($g_hBackBuffer, $hPath, $hPen)
+    _GDIPlus_PenDispose($hPen)
+
+    _GDIPlus_PathDispose($hPath)
+EndFunc
+
+; Zeichnet die große Monitor-Nummer
+Func _DrawMonitorNumber($iMonitor, $iX, $iY, $iW, $iH)
+    ; Berechne Schriftgröße basierend auf Monitor-Größe
+    Local $iFontSize = Int(_Min($iW, $iH) * 0.4)
+    If $iFontSize < 24 Then $iFontSize = 24
+    If $iFontSize > 72 Then $iFontSize = 72
+
+    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), $iFontSize, 0)
+    Local $hBrush = _GDIPlus_BrushCreateSolid($COLOR_WIN11_TEXT)
+    Local $hFormat = _GDIPlus_StringFormatCreate()
+    _GDIPlus_StringFormatSetAlign($hFormat, 1) ; Center horizontal
+    _GDIPlus_StringFormatSetLineAlign($hFormat, 1) ; Center vertical
+
+    Local $tLayout = _GDIPlus_RectFCreate($iX, $iY, $iW, $iH)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, String($iMonitor), $hFont, $tLayout, $hFormat, $hBrush)
+
     _GDIPlus_FontDispose($hFont)
-    _GDIPlus_StringFormatDispose($hStringFormat)
+    _GDIPlus_BrushDispose($hBrush)
+    _GDIPlus_StringFormatDispose($hFormat)
+EndFunc
+
+; Zeichnet die Monitor-Auflösung
+Func _DrawMonitorResolution($iMonitor, $iX, $iY, $iW, $iH)
+    Local $hFontSmall = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 10, 0)
+    Local $hFontTiny = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 8, 0)
+    Local $hBrush = _GDIPlus_BrushCreateSolid(0xDDFFFFFF) ; Etwas transparenter
+    Local $hBrushDim = _GDIPlus_BrushCreateSolid(0xAAFFFFFF) ; Noch transparenter
+    Local $hFormat = _GDIPlus_StringFormatCreate()
+    _GDIPlus_StringFormatSetAlign($hFormat, 1) ; Center
+
+    ; Effektive Auflösung (das was Windows sieht)
+    Local $sEffective = $g_aMonitors[$iMonitor][0] & " × " & $g_aMonitors[$iMonitor][1]
+    
+    ; Native/Physische Auflösung und Skalierung
+    Local $sScaling = ""
+    Local $sNative = ""
+    If $g_aMonitorScaling[$iMonitor] > 1.0 Then
+        ; Berechne native Auflösung
+        Local $iNativeWidth = Int($g_aMonitors[$iMonitor][0] * $g_aMonitorScaling[$iMonitor])
+        Local $iNativeHeight = Int($g_aMonitors[$iMonitor][1] * $g_aMonitorScaling[$iMonitor])
+        
+        $sScaling = Int($g_aMonitorScaling[$iMonitor] * 100) & "% Skalierung"
+        $sNative = "Nativ: " & $iNativeWidth & " × " & $iNativeHeight
+    Else
+        $sScaling = "100% (keine Skalierung)"
+    EndIf
+
+    ; Zeichne die Informationen untereinander
+    Local $iLineHeight = 15
+    Local $iStartY = $iY + $iH - 50
+    
+    ; Zeile 1: Effektive Auflösung (größer)
+    Local $tLayout = _GDIPlus_RectFCreate($iX, $iStartY, $iW, $iLineHeight)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sEffective, $hFontSmall, $tLayout, $hFormat, $hBrush)
+    
+    ; Zeile 2: Skalierung
+    $tLayout = _GDIPlus_RectFCreate($iX, $iStartY + $iLineHeight, $iW, $iLineHeight)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sScaling, $hFontTiny, $tLayout, $hFormat, $hBrushDim)
+    
+    ; Zeile 3: Native Auflösung (wenn skaliert)
+    If $sNative <> "" Then
+        $tLayout = _GDIPlus_RectFCreate($iX, $iStartY + $iLineHeight * 2, $iW, $iLineHeight)
+        _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sNative, $hFontTiny, $tLayout, $hFormat, $hBrushDim)
+    EndIf
+
+    _GDIPlus_FontDispose($hFontSmall)
+    _GDIPlus_FontDispose($hFontTiny)
+    _GDIPlus_BrushDispose($hBrush)
+    _GDIPlus_BrushDispose($hBrushDim)
+    _GDIPlus_StringFormatDispose($hFormat)
 EndFunc
 
 ; Zeichnet das GUI-Fenster
@@ -261,7 +368,7 @@ Func _DrawGUIWindow()
     Local $aPos = WinGetPos($g_hMainGUI)
     If Not IsArray($aPos) Then Return
 
-    ; Berechne die gleichen Grenzen und Skalierung wie in _DrawMonitors()
+    ; Verwende gleiche Berechnung wie für Monitore
     Local $iMinX = 999999, $iMinY = 999999
     Local $iMaxX = -999999, $iMaxY = -999999
 
@@ -274,105 +381,224 @@ Func _DrawGUIWindow()
 
     Local $iTotalWidth = $iMaxX - $iMinX
     Local $iTotalHeight = $iMaxY - $iMinY
-
-    ; Berechne optimale Skalierung und Offset (identisch mit _DrawMonitors)
-    Local $iAvailableWidth = $g_iVisWidth - 20   ; Nur 10px Rand links und rechts
-    Local $iAvailableHeight = $g_iVisHeight - 60  ; 30px oben für Titel, 30px unten für Status
-
-    Local $fScaleX = ($iTotalWidth > 0) ? ($iAvailableWidth / $iTotalWidth) : 1.0
-    Local $fScaleY = ($iTotalHeight > 0) ? ($iAvailableHeight / $iTotalHeight) : 1.0
-    Local $fScale = ($fScaleX < $fScaleY) ? $fScaleX : $fScaleY
-
-    ; Sicherstellen, dass Skalierung sinnvoll ist
-    If $fScale < 0.05 Then $fScale = 0.05
-    If $fScale > 3.0 Then $fScale = 3.0
-
-    ; Zentriere das Layout optimal (identisch mit _DrawMonitors)
-    Local $iScaledWidth = $iTotalWidth * $fScale
-    Local $iScaledHeight = $iTotalHeight * $fScale
+    Local $iScaledWidth = $iTotalWidth * $g_fScale
+    Local $iScaledHeight = $iTotalHeight * $g_fScale
     Local $iOffsetX = ($g_iVisWidth - $iScaledWidth) / 2
-    Local $iOffsetY = 30 + ($iAvailableHeight - $iScaledHeight) / 2  ; 30px für Titel + zentriert im Rest
+    Local $iOffsetY = 80 + (($g_iVisHeight - 160) - $iScaledHeight) / 2
 
-    ; Skalierte Koordinaten (mit Offset für negative Koordinaten)
-    Local $iX = $iOffsetX + (($aPos[0] - $iMinX) * $fScale)
-    Local $iY = $iOffsetY + (($aPos[1] - $iMinY) * $fScale)
-    Local $iW = $aPos[2] * $fScale
-    Local $iH = $aPos[3] * $fScale
+    ; Skalierte GUI-Position
+    Local $iX = $iOffsetX + (($aPos[0] - $iMinX) * $g_fScale)
+    Local $iY = $iOffsetY + (($aPos[1] - $iMinY) * $g_fScale)
+    Local $iW = $aPos[2] * $g_fScale
+    Local $iH = $aPos[3] * $g_fScale
 
-    ; Farbe basierend auf Status
-    Local $iColor = $g_bIsAnimating ? $COLOR_GUI_SLIDING : $COLOR_GUI_WINDOW
-    Local $hBrush = _GDIPlus_BrushCreateSolid(BitOR(0x80000000, BitAND($iColor, 0x00FFFFFF)))  ; Semi-transparent
-    Local $hPen = _GDIPlus_PenCreate($iColor, 3)
-
-    ; GUI-Rechteck zeichnen
+    ; Zeichne GUI als grünes Rechteck mit Transparenz
+    Local $hBrush = _GDIPlus_BrushCreateSolid(0x8000FF00) ; Semi-transparent grün
     _GDIPlus_GraphicsFillRect($g_hBackBuffer, $iX, $iY, $iW, $iH, $hBrush)
+    
+    Local $hPen = _GDIPlus_PenCreate(0xFF00AA00, 2)
     _GDIPlus_GraphicsDrawRect($g_hBackBuffer, $iX, $iY, $iW, $iH, $hPen)
+    
+    _GDIPlus_BrushDispose($hBrush)
+    _GDIPlus_PenDispose($hPen)
+EndFunc
 
-    ; Bewegungsrichtung anzeigen wenn sliding
-    If $g_bIsAnimating Then
-        _DrawArrow($iX + $iW/2, $iY + $iH/2, $g_sSwitchSide)
+; Zeichnet den Identifizieren-Button
+Func _DrawIdentifyButton()
+    Local $iButtonX = $g_iVisWidth - 140
+    Local $iButtonY = $g_iVisHeight - 45
+    Local $iButtonW = 100
+    Local $iButtonH = 30
+
+    ; Button-Hintergrund
+    _DrawRoundedRectangle($iButtonX, $iButtonY, $iButtonW, $iButtonH, 4, 0xFFE5E5E5, 0xFFCCCCCC)
+
+    ; Button-Text
+    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 10, 0)
+    Local $hBrush = _GDIPlus_BrushCreateSolid(0xFF000000)
+    Local $hFormat = _GDIPlus_StringFormatCreate()
+    _GDIPlus_StringFormatSetAlign($hFormat, 1)
+    _GDIPlus_StringFormatSetLineAlign($hFormat, 1)
+
+    Local $tLayout = _GDIPlus_RectFCreate($iButtonX, $iButtonY, $iButtonW, $iButtonH)
+    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, "Identifizieren", $hFont, $tLayout, $hFormat, $hBrush)
+
+    _GDIPlus_FontDispose($hFont)
+    _GDIPlus_BrushDispose($hBrush)
+    _GDIPlus_StringFormatDispose($hFormat)
+EndFunc
+
+; Click-Handler für Visualizer
+Func _OnVisualizerClick($hWnd, $iMsg, $wParam, $lParam)
+    If $hWnd <> $g_hVisualizerGUI Then Return $GUI_RUNDEFMSG
+
+    Local $iX = BitAND($lParam, 0xFFFF)
+    Local $iY = BitShift($lParam, 16)
+
+    ; Prüfe ob Identifizieren-Button geklickt wurde
+    If $iX >= $g_iVisWidth - 140 And $iX <= $g_iVisWidth - 40 And _
+       $iY >= $g_iVisHeight - 45 And $iY <= $g_iVisHeight - 15 Then
+        _IdentifyMonitors()
+        Return 0
     EndIf
 
-    _GDIPlus_BrushDispose($hBrush)
-    _GDIPlus_PenDispose($hPen)
+    ; Prüfe welcher Monitor geklickt wurde
+    Local $iClickedMonitor = _GetMonitorAtVisualizerPoint($iX, $iY)
+    If $iClickedMonitor > 0 Then
+        $g_iCurrentScreenNumber = $iClickedMonitor
+        _UpdateVisualization()
+    EndIf
+
+    Return 0
 EndFunc
 
-; Zeichnet einen Pfeil für die Bewegungsrichtung
-Func _DrawArrow($iCenterX, $iCenterY, $sDirection)
-    Local $hPen = _GDIPlus_PenCreate($COLOR_GUI_SLIDING, 3)
-    Local $iLen = 20
+; MouseMove-Handler für Hover-Effekte
+Func _OnVisualizerMouseMove($hWnd, $iMsg, $wParam, $lParam)
+    If $hWnd <> $g_hVisualizerGUI Then Return $GUI_RUNDEFMSG
 
-    Switch $sDirection
-        Case $POS_LEFT
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY, $iCenterX - $iLen, $iCenterY, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX - $iLen, $iCenterY, $iCenterX - $iLen + 5, $iCenterY - 5, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX - $iLen, $iCenterY, $iCenterX - $iLen + 5, $iCenterY + 5, $hPen)
+    Local $iX = BitAND($lParam, 0xFFFF)
+    Local $iY = BitShift($lParam, 16)
 
-        Case $POS_RIGHT
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY, $iCenterX + $iLen, $iCenterY, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX + $iLen, $iCenterY, $iCenterX + $iLen - 5, $iCenterY - 5, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX + $iLen, $iCenterY, $iCenterX + $iLen - 5, $iCenterY + 5, $hPen)
+    ; Welcher Monitor wird gehovert?
+    Local $iHoverMonitor = _GetMonitorAtVisualizerPoint($iX, $iY)
+    
+    If $iHoverMonitor <> $g_iLastHoveredMonitor Then
+        $g_iHoveredMonitor = $iHoverMonitor
+        $g_iLastHoveredMonitor = $iHoverMonitor
+        
+        If $iHoverMonitor > 0 Then
+            ; Zeige Tooltip
+            Local $sInfo = "Monitor " & $iHoverMonitor & @CRLF
+            $sInfo &= "Auflösung: " & $g_aMonitors[$iHoverMonitor][0] & " × " & $g_aMonitors[$iHoverMonitor][1] & @CRLF
+            $sInfo &= "Position: " & $g_aMonitors[$iHoverMonitor][2] & ", " & $g_aMonitors[$iHoverMonitor][3]
+            
+            If $g_aMonitorScaling[$iHoverMonitor] > 1.0 Then
+                $sInfo &= @CRLF & "Skalierung: " & Int($g_aMonitorScaling[$iHoverMonitor] * 100) & "%"
+            EndIf
+            
+            ToolTip($sInfo, MouseGetPos(0) + 15, MouseGetPos(1) + 15)
+        Else
+            ToolTip("")
+        EndIf
+        
+        _UpdateVisualization()
+    EndIf
 
-        Case $POS_TOP
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY, $iCenterX, $iCenterY - $iLen, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY - $iLen, $iCenterX - 5, $iCenterY - $iLen + 5, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY - $iLen, $iCenterX + 5, $iCenterY - $iLen + 5, $hPen)
-
-        Case $POS_BOTTOM
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY, $iCenterX, $iCenterY + $iLen, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY + $iLen, $iCenterX - 5, $iCenterY + $iLen - 5, $hPen)
-            _GDIPlus_GraphicsDrawLine($g_hBackBuffer, $iCenterX, $iCenterY + $iLen, $iCenterX + 5, $iCenterY + $iLen - 5, $hPen)
-    EndSwitch
-
-    _GDIPlus_PenDispose($hPen)
+    Return 0
 EndFunc
 
-; Zeichnet Info-Text
-Func _DrawInfoText()
-    Local $hBrush = _GDIPlus_BrushCreateSolid($COLOR_TEXT)
-    Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Arial"), 12, 1)
-    Local $hStringFormat = _GDIPlus_StringFormatCreate()
-
-    ; Titel
-    Local $tLayout = _GDIPlus_RectFCreate(5, 5, $g_iVisWidth - 10, 20)
-    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, "Monitor Layout Visualisierung", $hFont, $tLayout, $hStringFormat, $hBrush)
-
-    ; Status-Info
-    Local $hFontSmall = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Arial"), 9)
-    Local $sStatus = "GUI Status: " & ($g_bWindowIsOut ? "Ausgefahren" : "Normal")
-    $sStatus &= " | Position: " & $g_sWindowIsAt
-    $sStatus &= " | Monitor: " & $g_iCurrentScreenNumber
-
-    $tLayout = _GDIPlus_RectFCreate(5, $g_iVisHeight - 25, $g_iVisWidth - 10, 20)
-    _GDIPlus_GraphicsDrawStringEx($g_hBackBuffer, $sStatus, $hFontSmall, $tLayout, $hStringFormat, $hBrush)
-
-    _GDIPlus_BrushDispose($hBrush)
-    _GDIPlus_FontDispose($hFont)
-    _GDIPlus_FontDispose($hFontSmall)
-    _GDIPlus_StringFormatDispose($hStringFormat)
+; MouseLeave-Handler
+Func _OnVisualizerMouseLeave($hWnd, $iMsg, $wParam, $lParam)
+    If $hWnd <> $g_hVisualizerGUI Then Return $GUI_RUNDEFMSG
+    
+    $g_iHoveredMonitor = 0
+    $g_iLastHoveredMonitor = 0
+    ToolTip("")
+    _UpdateVisualization()
+    
+    Return $GUI_RUNDEFMSG
 EndFunc
 
-; Aktualisiert die Visualisierung
+; Ermittelt welcher Monitor an einem Visualizer-Punkt ist
+Func _GetMonitorAtVisualizerPoint($iClickX, $iClickY)
+    If Not IsArray($g_aMonitors) Or $g_aMonitors[0][0] = 0 Then Return 0
+
+    ; Berechne Layout-Parameter (gleich wie beim Zeichnen)
+    Local $iMinX = 999999, $iMinY = 999999
+    Local $iMaxX = -999999, $iMaxY = -999999
+
+    For $i = 1 To $g_aMonitors[0][0]
+        If $g_aMonitors[$i][2] < $iMinX Then $iMinX = $g_aMonitors[$i][2]
+        If $g_aMonitors[$i][3] < $iMinY Then $iMinY = $g_aMonitors[$i][3]
+        If $g_aMonitors[$i][2] + $g_aMonitors[$i][0] > $iMaxX Then $iMaxX = $g_aMonitors[$i][2] + $g_aMonitors[$i][0]
+        If $g_aMonitors[$i][3] + $g_aMonitors[$i][1] > $iMaxY Then $iMaxY = $g_aMonitors[$i][3] + $g_aMonitors[$i][1]
+    Next
+
+    Local $iTotalWidth = $iMaxX - $iMinX
+    Local $iTotalHeight = $iMaxY - $iMinY
+    Local $iScaledWidth = $iTotalWidth * $g_fScale
+    Local $iScaledHeight = $iTotalHeight * $g_fScale
+    Local $iOffsetX = ($g_iVisWidth - $iScaledWidth) / 2
+    Local $iOffsetY = 80 + (($g_iVisHeight - 160) - $iScaledHeight) / 2
+
+    ; Prüfe jeden Monitor
+    For $i = 1 To $g_aMonitors[0][0]
+        Local $iX = $iOffsetX + (($g_aMonitors[$i][2] - $iMinX) * $g_fScale)
+        Local $iY = $iOffsetY + (($g_aMonitors[$i][3] - $iMinY) * $g_fScale)
+        Local $iW = $g_aMonitors[$i][0] * $g_fScale
+        Local $iH = $g_aMonitors[$i][1] * $g_fScale
+
+        If $iClickX >= $iX And $iClickX <= $iX + $iW And _
+           $iClickY >= $iY And $iClickY <= $iY + $iH Then
+            Return $i
+        EndIf
+    Next
+
+    Return 0
+EndFunc
+
+; Zeigt große Nummern auf den echten Monitoren
+Func _IdentifyMonitors()
+    _LogInfo("Zeige Monitor-Identifikation...")
+    
+    Local $aIdentifyGUIs[$g_iMonitorCount + 1]
+    
+    For $i = 1 To $g_iMonitorCount
+        ; Erstelle transparentes Fenster für jeden Monitor
+        Local $hIdentifyGUI = GUICreate("", 250, 250, _
+                                       $g_aMonitors[$i][2] + ($g_aMonitors[$i][0] - 250) / 2, _
+                                       $g_aMonitors[$i][3] + ($g_aMonitors[$i][1] - 250) / 2, _
+                                       $WS_POPUP, BitOR($WS_EX_LAYERED, $WS_EX_TRANSPARENT, $WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+        
+        ; Setze Transparenz
+        _WinAPI_SetLayeredWindowAttributes($hIdentifyGUI, 0x000000, 0, $LWA_COLORKEY)
+        GUISetBkColor(0x000000, $hIdentifyGUI)
+        
+        ; Erstelle Graphics-Objekt
+        Local $hGraphic = _GDIPlus_GraphicsCreateFromHWND($hIdentifyGUI)
+        _GDIPlus_GraphicsSetSmoothingMode($hGraphic, 4)
+        
+        ; Zeichne weißen Kreis mit Schatten
+        Local $hBrushShadow = _GDIPlus_BrushCreateSolid(0x80000000)
+        _GDIPlus_GraphicsFillEllipse($hGraphic, 27, 27, 200, 200, $hBrushShadow)
+        
+        Local $hBrushBg = _GDIPlus_BrushCreateSolid(0xFFFFFFFF)
+        _GDIPlus_GraphicsFillEllipse($hGraphic, 25, 25, 200, 200, $hBrushBg)
+        
+        ; Zeichne Monitor-Nummer
+        Local $hFont = _GDIPlus_FontCreate(_GDIPlus_FontFamilyCreate("Segoe UI"), 100, 0)
+        Local $hBrush = _GDIPlus_BrushCreateSolid(0xFF000000)
+        Local $hFormat = _GDIPlus_StringFormatCreate()
+        _GDIPlus_StringFormatSetAlign($hFormat, 1)
+        _GDIPlus_StringFormatSetLineAlign($hFormat, 1)
+        
+        Local $tLayout = _GDIPlus_RectFCreate(25, 25, 200, 200)
+        _GDIPlus_GraphicsDrawStringEx($hGraphic, String($i), $hFont, $tLayout, $hFormat, $hBrush)
+        
+        GUISetState(@SW_SHOWNOACTIVATE, $hIdentifyGUI)
+        $aIdentifyGUIs[$i] = $hIdentifyGUI
+        
+        ; Cleanup
+        _GDIPlus_GraphicsDispose($hGraphic)
+        _GDIPlus_BrushDispose($hBrushShadow)
+        _GDIPlus_BrushDispose($hBrushBg)
+        _GDIPlus_BrushDispose($hBrush)
+        _GDIPlus_FontDispose($hFont)
+        _GDIPlus_StringFormatDispose($hFormat)
+    Next
+    
+    ; Zeige für 2 Sekunden
+    Sleep(2000)
+    
+    ; Schließe alle Identifikations-Fenster
+    For $i = 1 To $g_iMonitorCount
+        GUIDelete($aIdentifyGUIs[$i])
+    Next
+    
+    _LogInfo("Monitor-Identifikation beendet")
+EndFunc
+
+; Aktualisiert die Windows 11 Visualisierung
 Func _UpdateVisualization()
     If Not IsHWnd($g_hVisualizerGUI) Then Return
 
@@ -393,10 +619,6 @@ Func _UpdateVisualization()
     ; Prüfe auf Änderungen
     If $iCurrentCount <> $iLastMonitorCount Or $sCurrentConfig <> $sLastMonitorConfig Then
         _LogInfo("Monitor-Konfiguration geändert! Anzahl: " & $iLastMonitorCount & " -> " & $iCurrentCount)
-        _LogInfo("Neue Konfiguration: " & $sCurrentConfig)
-
-        ; WICHTIG: Visualizer komplett leeren vor Neuzeichnung
-        _ClearVisualization()
 
         ; Aktualisiere globale Monitor-Daten
         $g_aMonitors = $aCurrentMonitors
@@ -408,8 +630,6 @@ Func _UpdateVisualization()
         ; Merke neue Konfiguration
         $iLastMonitorCount = $iCurrentCount
         $sLastMonitorConfig = $sCurrentConfig
-
-        _LogInfo("Visualisierung gesäubert und automatisch aktualisiert")
     EndIf
 
     ; Aktualisiere aktuellen Monitor basierend auf GUI-Position
@@ -427,33 +647,9 @@ Func _UpdateVisualization()
     _DrawVisualization()
 EndFunc
 
-; Säubert die Visualisierung (leert den Bildschirm)
-Func _ClearVisualization()
-    If Not IsHWnd($g_hVisualizerGUI) Then Return
-
-    _LogDebug("Säubere Visualizer-Bildschirm...")
-
-    ; Leere den Back-Buffer komplett
-    If $g_hBackBuffer Then
-        _GDIPlus_GraphicsClear($g_hBackBuffer, $COLOR_BACKGROUND)
-    EndIf
-
-    ; Leere auch den Haupt-Graphics-Kontext
-    If $g_hGraphics Then
-        _GDIPlus_GraphicsClear($g_hGraphics, $COLOR_BACKGROUND)
-    EndIf
-
-    ; Sofortige Bildschirm-Aktualisierung
-    If $g_hGraphics And $g_hBitmap Then
-        _GDIPlus_GraphicsDrawImage($g_hGraphics, $g_hBitmap, 0, 0)
-    EndIf
-
-    _LogDebug("Visualizer-Bildschirm gesäubert")
-EndFunc
-
 ; Schließt die Visualisierung
 Func _CloseVisualization()
-    _LogInfo("Schließe Monitor-Visualisierung...")
+    _LogInfo("Schließe Windows 11 Monitor-Visualisierung...")
 
     If IsHWnd($g_hVisualizerGUI) Then
         GUIDelete($g_hVisualizerGUI)
@@ -467,13 +663,3 @@ Func _CloseVisualization()
 
     _GDIPlus_Shutdown()
 EndFunc
-
-; Hilfsfunktion für Rechteck-Struktur
-;~ Func _GDIPlus_RectFCreate($iX, $iY, $iWidth, $iHeight)
-;~     Local $tRectF = DllStructCreate("float X;float Y;float Width;float Height")
-;~     DllStructSetData($tRectF, "X", $iX)
-;~     DllStructSetData($tRectF, "Y", $iY)
-;~     DllStructSetData($tRectF, "Width", $iWidth)
-;~     DllStructSetData($tRectF, "Height", $iHeight)
-;~     Return $tRectF
-;~ EndFunc
