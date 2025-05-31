@@ -2,6 +2,10 @@
 #include <GDIPlus.au3>
 #include <WindowsConstants.au3>
 #include <GUIConstantsEx.au3>
+#include <Math.au3>
+#include <WinAPIGdi.au3>
+#include <WinAPIGdiDC.au3>
+#include <WinAPISysWin.au3>
 #include "..\includes\GlobalVars.au3"
 #include "..\includes\Constants.au3"
 #include "MonitorDetection.au3"
@@ -26,6 +30,7 @@ Global Const $COLOR_WIN11_SELECTED = 0xFF005A9E  ; Dunkleres Blau für Auswahl
 Global Const $COLOR_WIN11_BORDER = 0xFFD6D6D6    ; Monitor-Rand
 Global Const $COLOR_WIN11_TEXT = 0xFFFFFFFF      ; Weißer Text
 Global Const $COLOR_WIN11_SHADOW = 0x20000000    ; Leichter Schatten
+
 
 ; Monitor-Skalierungsfaktoren
 Global $g_aMonitorScaling[13] ; DPI-Skalierung pro Monitor
@@ -287,7 +292,7 @@ EndFunc
 ; Zeichnet die große Monitor-Nummer
 Func _DrawMonitorNumber($iMonitor, $iX, $iY, $iW, $iH)
     ; Berechne Schriftgröße basierend auf Monitor-Größe
-    Local $iFontSize = Int(Min($iW, $iH) * 0.4)
+    Local $iFontSize = Int(_Min($iW, $iH) * 0.4)
     If $iFontSize < 24 Then $iFontSize = 24
     If $iFontSize > 72 Then $iFontSize = 72
 
