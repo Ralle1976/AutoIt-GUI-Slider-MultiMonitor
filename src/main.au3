@@ -61,12 +61,12 @@ Func _Main()
 
     ; Erstelle Tray-Menü
     _CreateTrayMenu()
-    
+
     ; Registriere Auto-Slide-In wenn aktiviert
     Local $aBehavior = _GetBehaviorSettings()
     Local $bAutoSlideIn = False
     Local $iAutoSlideInDelay = 250
-    
+
     For $i = 0 To UBound($aBehavior) - 1
         Switch $aBehavior[$i][0]
             Case "AutoSlideIn"
@@ -81,27 +81,27 @@ Func _Main()
                 $g_bContinuousSlideMode = $aBehavior[$i][1]
         EndSwitch
     Next
-    
+
     ; Modus-Validierung: Nur ein Modus kann aktiv sein
     Local $iActiveModes = 0
     If $g_bClassicSliderMode Then $iActiveModes += 1
     If $g_bDirectSlideMode Then $iActiveModes += 1
     If $g_bContinuousSlideMode Then $iActiveModes += 1
-    
+
     If $iActiveModes > 1 Then
         _LogWarning("Mehrere Slider-Modi aktiviert! Verwende Standard-Modus.")
         $g_bClassicSliderMode = False
         $g_bDirectSlideMode = False
         $g_bContinuousSlideMode = False
     EndIf
-    
+
     ; Modus-Logging
     Local $sActiveMode = "Standard"
     If $g_bClassicSliderMode Then $sActiveMode = "Classic"
     If $g_bDirectSlideMode Then $sActiveMode = "Direct"
     If $g_bContinuousSlideMode Then $sActiveMode = "Continuous"
     _LogInfo("Slider-Modus: " & $sActiveMode)
-    
+
     If $bAutoSlideIn Then
         AdlibRegister("_CheckAutoSlideIn", $iAutoSlideInDelay)
         _LogInfo("Auto-Slide-In aktiviert (Interval: " & $iAutoSlideInDelay & "ms)")
@@ -112,22 +112,22 @@ Func _Main()
     Local $iVisUpdate = 0
     While 1
         Sleep(50)
-        
+
         ; Prüfe auf GUI-Updates
         If $g_bIsAnimating Then
             ContinueLoop
         EndIf
-        
+
         ; Monitor-Position aktualisieren wenn GUI bewegt wurde
         If TimerDiff($iLastCheck) > 500 Then
             _UpdateCurrentMonitor()
             $iLastCheck = TimerInit()
         EndIf
-        
+
         ; Visualisierung regelmäßig aktualisieren
         If TimerDiff($iVisUpdate) > 100 Then  ; Alle 100ms
             _UpdateVisualization()
-            
+
             ; Automatische GUI-Wiederherstellung wenn außerhalb
             Local $aPos = WinGetPos($g_hMainGUI)
             If IsArray($aPos) Then
@@ -136,7 +136,7 @@ Func _Main()
                     _RecoverLostWindow($g_hMainGUI)
                 EndIf
             EndIf
-            
+
             $iVisUpdate = TimerInit()
         EndIf
     WEnd
@@ -218,7 +218,7 @@ Func _CreateTrayMenu()
     ; Tray-Icon Tooltip mit visueller Position und Display-Nummer
     Local $iVisualIndex = _GetVisualMonitorIndex($g_iCurrentScreenNumber)
     Local $iActualDisplay = _GetActualDisplayNumber($g_iCurrentScreenNumber)
-    
+
     Local $sTooltip = "GUI Slider - Monitor " & $iVisualIndex
     If $iActualDisplay <> $g_iCurrentScreenNumber Then
         $sTooltip &= " (Display " & $iActualDisplay & ")"
@@ -280,13 +280,13 @@ EndFunc
 ; ==========================================
 Func _Cleanup()
     _LogInfo("Beende Programm...")
-    
+
     ; Speichere aktuelle Position
     _SaveConfig()
-    
+
     ; Deaktiviere Auto-Slide-In
     AdlibUnRegister("_CheckAutoSlideIn")
-    
+
     ; Entferne Hotkeys
     HotKeySet("!{Left}")
     HotKeySet("!{Right}")
@@ -295,13 +295,13 @@ Func _Cleanup()
     HotKeySet("!{Space}")
     HotKeySet("!{Home}")
     HotKeySet("!{End}")
-    
+
     ; Visualisierung schließen
     _CloseVisualization()
-    
+
     ; GUI aufräumen
     _DestroyGUI()
-    
+
     ; Logging beenden
     _CloseLogging()
 EndFunc

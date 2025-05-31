@@ -2,6 +2,9 @@
 
 Eine AutoIt UDF (User Defined Function) für Multi-Monitor GUI Slider-Systeme.
 
+![GUI-Slider in Aktion](docs/Ansicht1.jpg)
+*GUI-Slider mit Visualizer und Konfigurationsdialog in Aktion*
+
 ## 🚀 Features
 
 - **4 Slider-Modi**: Standard, Classic, Direct, Continuous
