@@ -1,11 +1,11 @@
 ; Test-Datei für Monitor-Erkennung
-#include "..\modules\MonitorDetection.au3"
-#include "..\modules\Logging.au3"
-#include "..\includes\GlobalVars.au3"
-#include "..\includes\Constants.au3"
+#include "../src/modules/MonitorDetection.au3"
+#include "../src/modules/Logging.au3"
+#include "../src/includes/GlobalVars.au3"
+#include "../src/includes/Constants.au3"
 
 ; Logging initialisieren
-_InitLogging(@ScriptDir & "\..\logs\")
+_InitLogging(@ScriptDir & "/../logs/")
 
 ; Monitor-Erkennung testen
 ConsoleWrite("=== Test Monitor-Erkennung ===" & @CRLF)

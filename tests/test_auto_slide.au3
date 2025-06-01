@@ -8,13 +8,13 @@
 
 #include <GUIConstantsEx.au3>
 #include <WindowsConstants.au3>
-#include "..\src\includes\GlobalVars.au3"
-#include "..\src\includes\Constants.au3"
-#include "..\src\modules\MonitorDetection.au3"
-#include "..\src\modules\SliderLogic.au3"
-#include "..\src\modules\GUIControl.au3"
-#include "..\src\modules\AutoSlideMode.au3"
-#include "..\src\modules\Logging.au3"
+#include "../src/includes/GlobalVars.au3"
+#include "../src/includes/Constants.au3"
+#include "../src/modules/MonitorDetection.au3"
+#include "../src/modules/SliderLogic.au3"
+#include "../src/modules/GUIControl.au3"
+#include "../src/modules/AutoSlideMode.au3"
+#include "../src/modules/Logging.au3"
 
 ; Initialisiere Logging
 _InitLogging()

@@ -6,6 +6,9 @@ config/settings.ini
 
 # Log files
 *.log
+*.log.*
+logs/
+*/logs/
 
 # Compiled files
 *.exe
