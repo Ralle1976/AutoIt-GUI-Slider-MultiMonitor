@@ -19,7 +19,7 @@ Opt("TrayMenuMode", 1+2)  ; Kein Default-Menü, kein Pause
 
 ; GUI-Elemente
 Global $hMainGUI, $btnLeft, $btnUp, $btnStop, $btnDown, $btnRight
-Global $comboMode, $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
+Global $sliderSpeed, $lblSpeed, $chkAutoSlide, $lblStatus
 Global $lblInfo, $btnConfig, $btnAbout, $btnTest, $btnReset, $btnVisualizer
 
 ; Tray-Menü Elemente
@@ -29,6 +29,7 @@ Global $idTraySlideIn, $idTrayVisualizer, $idTrayAbout, $idTrayExit
 Global $iAnimationSpeed = 20  ; Standard-Geschwindigkeit
 Global $bAutoSlideEnabled = True
 Global $bVisualizerOn = False
+Global $bAutoSlidePaused = False  ; Track Auto-Slide Pause Status
 
 ; Erstelle Test-GUI
 Func _CreateTestGUI()
@@ -61,7 +62,7 @@ Func _CreateTestGUI()
 
     $btnStop = GUICtrlCreateButton("⏹", 85, 105, 50, 30)
     GUICtrlSetFont($btnStop, 12, 600)
-    GUICtrlSetBkColor($btnStop, 0xFF6666)
+    GUICtrlSetBkColor($btnStop, 0x66FF66)  ; Grün = Auto-Slide aktiv
     GUICtrlSetTip($btnStop, "Stop/Zurück zur Mitte (Alt+Space)")
     GUICtrlSetOnEvent($btnStop, "_OnStop")
 
@@ -79,30 +80,28 @@ Func _CreateTestGUI()
     ; Einstellungen
     GUICtrlCreateGroup("Einstellungen", 220, 50, 290, 120)
 
-    ; Modus-Auswahl
-    GUICtrlCreateLabel("Slider-Modus:", 230, 75, 80, 20)
-    $comboMode = GUICtrlCreateCombo("Continuous", 230, 95, 120, 200, $CBS_DROPDOWNLIST)
-    GUICtrlSetData($comboMode, "Standard|Classic|Direct|Continuous", "Continuous")
-    GUICtrlSetTip($comboMode, "Standard: Normal | Classic: 2-Klick | Direct: Sofort | Continuous: Durchfahren")
-    GUICtrlSetOnEvent($comboMode, "_OnModeChange")
+    ; Modus ist fest auf "Continuous" gesetzt (empfohlener Modus)
+    GUICtrlCreateLabel("Slider-Modus: Continuous (optimal)", 230, 75, 180, 20)
+    GUICtrlCreateLabel("→ Intelligente Navigation", 230, 95, 180, 15)
+    GUICtrlSetFont(-1, 8, 400, 2)  ; Kursiv
 
     ; Geschwindigkeit
-    GUICtrlCreateLabel("Geschwindigkeit:", 360, 75, 90, 20)
-    $sliderSpeed = GUICtrlCreateSlider(360, 95, 100, 20)
+    GUICtrlCreateLabel("Geschwindigkeit:", 230, 115, 90, 20)
+    $sliderSpeed = GUICtrlCreateSlider(230, 135, 120, 20)
     GUICtrlSetLimit($sliderSpeed, 50, 5)  ; 5ms bis 50ms
     GUICtrlSetData($sliderSpeed, 20)  ; Standard: 20ms
     GUICtrlSetTip($sliderSpeed, "Animation-Geschwindigkeit (5-50ms)")
     GUICtrlSetOnEvent($sliderSpeed, "_OnSpeedChange")
-    $lblSpeed = GUICtrlCreateLabel("20ms", 470, 97, 40, 20)
+    $lblSpeed = GUICtrlCreateLabel("20ms", 360, 137, 40, 20)
 
-    ; Auto-Slide-In
-    $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide-In", 360, 125, 100, 20)
+    ; Auto-Slide
+    $chkAutoSlide = GUICtrlCreateCheckbox("Auto-Slide aktiviert", 380, 95, 120, 20)
     GUICtrlSetState($chkAutoSlide, $GUI_CHECKED)
-    GUICtrlSetTip($chkAutoSlide, "Automatisches Einfahren bei Maus-Berührung")
+    GUICtrlSetTip($chkAutoSlide, "Automatisches Ein-/Ausfahren bei Maus-Berührung")
     GUICtrlSetOnEvent($chkAutoSlide, "_OnAutoSlideToggle")
 
     ; Visualizer Button
-    $btnVisualizer = GUICtrlCreateButton("Visualizer", 360, 145, 80, 20)
+    $btnVisualizer = GUICtrlCreateButton("Visualizer", 380, 115, 80, 20)
     GUICtrlSetBkColor($btnVisualizer, 0x66FF66)
     GUICtrlSetTip($btnVisualizer, "Monitor-Visualisierung ein/ausschalten")
     GUICtrlSetOnEvent($btnVisualizer, "_OnVisualizerToggle")
@@ -113,9 +112,9 @@ Func _CreateTestGUI()
     GUICtrlSetTip($btnConfig, "Erweiterte Konfiguration mit Monitor-Infos")
     GUICtrlSetOnEvent($btnConfig, "_OnConfig")
 
-    $btnTest = GUICtrlCreateButton("Alle Modi testen", 130, 200, 110, 30)
-    GUICtrlSetTip($btnTest, "Testet automatisch alle 4 Slider-Modi")
-    GUICtrlSetOnEvent($btnTest, "_OnTestAll")
+    $btnTest = GUICtrlCreateButton("System-Test", 130, 200, 110, 30)
+    GUICtrlSetTip($btnTest, "Testet alle Slide-Richtungen")
+    GUICtrlSetOnEvent($btnTest, "_OnSystemTest")
 
     $btnReset = GUICtrlCreateButton("Position reset", 250, 200, 100, 30)
     GUICtrlSetTip($btnReset, "GUI zur Bildschirmmitte zurücksetzen")
@@ -129,7 +128,7 @@ Func _CreateTestGUI()
     ; Info-Icon (statt About Button)
     $btnAbout = GUICtrlCreateButton("ℹ", 480, 10, 25, 25)
     GUICtrlSetFont($btnAbout, 12, 400)
-    GUICtrlSetTip($btnAbout, "Über das Test Tool")
+    GUICtrlSetTip($btnAbout, "System-Informationen (wird nach Initialisierung aktualisiert)")
     GUICtrlSetOnEvent($btnAbout, "_OnAbout")
 
     ; Status-Anzeige
@@ -175,26 +174,43 @@ Func _OnSlideDown()
 EndFunc
 
 Func _OnStop()
-    If _SliderSystem_IsSlideOut() Then
-        Local $sPos = _SliderSystem_GetSlidePosition()
-        Switch $sPos
-            Case "Left"
-                _SliderSystem_SlideLeft()
-            Case "Right"
-                _SliderSystem_SlideRight()
-            Case "Top"
-                _SliderSystem_SlideUp()
-            Case "Bottom"
-                _SliderSystem_SlideDown()
-        EndSwitch
-        _UpdateTestStatus()
+    ; Toggle Auto-Slide Pause Status
+    $bAutoSlidePaused = Not $bAutoSlidePaused
+    
+    If $bAutoSlidePaused Then
+        ; Pausiere Auto-Slide und zentriere GUI
+        _PauseAutoSlide(True)
+        ConsoleWrite("Auto-Slide PAUSIERT - GUI zentriert" & @CRLF)
+        
+        ; Zentriere GUI falls ausgefahren
+        If _SliderSystem_IsSlideOut() Then
+            Local $sPos = _SliderSystem_GetSlidePosition()
+            Switch $sPos
+                Case "Left"
+                    _SliderSystem_SlideLeft()
+                Case "Right"
+                    _SliderSystem_SlideRight()
+                Case "Top"
+                    _SliderSystem_SlideUp()
+                Case "Bottom"
+                    _SliderSystem_SlideDown()
+            EndSwitch
+        EndIf
+        
+        ; Update Button Text
+        GUICtrlSetData($btnStop, "Auto-Slide EIN")
+        GUICtrlSetBkColor($btnStop, 0xFF6666)  ; Rot = Pausiert
+        
+    Else
+        ; Setze Auto-Slide fort
+        _PauseAutoSlide(False)
+        ConsoleWrite("Auto-Slide FORTGESETZT" & @CRLF)
+        
+        ; Update Button Text
+        GUICtrlSetData($btnStop, "Stop/Zurück zur Mitte (Alt+Space)")
+        GUICtrlSetBkColor($btnStop, 0x66FF66)  ; Grün = Aktiv
     EndIf
-EndFunc
-
-Func _OnModeChange()
-    Local $sNewMode = GUICtrlRead($comboMode)
-    _SliderSystem_SetMode($sNewMode)
-    ConsoleWrite("Modus geändert zu: " & $sNewMode & @CRLF)
+    
     _UpdateTestStatus()
 EndFunc
 
@@ -207,8 +223,8 @@ EndFunc
 
 Func _OnAutoSlideToggle()
     $bAutoSlideEnabled = (GUICtrlRead($chkAutoSlide) = $GUI_CHECKED)
-    _SliderSystem_EnableAutoSlideIn($bAutoSlideEnabled, 250)
-    ConsoleWrite("Auto-Slide-In: " & ($bAutoSlideEnabled ? "aktiviert" : "deaktiviert") & @CRLF)
+    _SetAutoSlideMode($bAutoSlideEnabled, 750, 250)  ; DelayOut=750ms, DelayIn=250ms
+    ConsoleWrite("Auto-Slide: " & ($bAutoSlideEnabled ? "aktiviert" : "deaktiviert") & @CRLF)
     _UpdateTestStatus()
 EndFunc
 
@@ -226,54 +242,77 @@ Func _OnConfig()
 EndFunc
 
 Func _OnAbout()
-    ; Zeige Hotkey-Informationen prominent
+    ; Sammle umfassende Systeminformationen
+    Local $aMonitors = _GetMonitors()
+    Local $aAutoSlideStatus = _GetAutoSlideStatus()
+    
     Local $sInfo = "GUI-Slider MultiMonitor Test Tool" & @CRLF & _
-           "Version: 2.0 (OnEvent)" & @CRLF & _
-           "═══════════════════════════════════════" & @CRLF & @CRLF & _
-           "HOTKEYS:" & @CRLF & _
-           "────────────────────────────" & @CRLF & _
-           "Alt + ← : Nach links sliden" & @CRLF & _
-           "Alt + → : Nach rechts sliden" & @CRLF & _
-           "Alt + ↑ : Nach oben sliden" & @CRLF & _
-           "Alt + ↓ : Nach unten sliden" & @CRLF & _
-           "Alt + Space : Stop/Zurück zur Mitte" & @CRLF & _
-           "ESC : Programm beenden" & @CRLF & @CRLF & _
-           "TRAY-MENÜ:" & @CRLF & _
-           "────────────────────────────" & @CRLF & _
-           "Rechtsklick auf Tray-Icon für:" & @CRLF & _
-           "• Slide IN (wenn ausgefahren)" & @CRLF & _
-           "• Visualizer Ein/Aus" & @CRLF & _
-           "• Beenden" & @CRLF & @CRLF & _
-           "Autor: Ralle1976"
+           "Version: 2.0 (OnEvent mit AutoSlideMode)" & @CRLF & _
+           "═══════════════════════════════════════" & @CRLF & @CRLF
+    
+    ; SYSTEM STATUS
+    $sInfo &= "SYSTEM STATUS:" & @CRLF & _
+             "────────────────────────────" & @CRLF & _
+             "Aktueller Monitor: " & _SliderSystem_GetCurrentMonitor() & @CRLF & _
+             "GUI Status: " & (_SliderSystem_IsSlideOut() ? "Ausgefahren (" & _SliderSystem_GetSlidePosition() & ")" : "Zentriert") & @CRLF & _
+             "Slider-Modus: Continuous (optimal)" & @CRLF & _
+             "Animation: " & $iAnimationSpeed & "ms" & @CRLF & @CRLF
+             
+    ; AUTO-SLIDE STATUS
+    $sInfo &= "AUTO-SLIDE STATUS:" & @CRLF & _
+             "────────────────────────────" & @CRLF & _
+             "Aktiviert: " & ($bAutoSlideEnabled ? "JA" : "NEIN") & @CRLF & _
+             "Pausiert: " & ($bAutoSlidePaused ? "JA" : "NEIN") & @CRLF & _
+             "System aktiv: " & ($aAutoSlideStatus[0] ? "JA" : "NEIN") & @CRLF & _
+             "Timer läuft: " & ($aAutoSlideStatus[4] ? "JA (" & $aAutoSlideStatus[5] & ")" : "NEIN") & @CRLF & _
+             "DelayOut: " & $aAutoSlideStatus[1] & "ms | DelayIn: " & $aAutoSlideStatus[2] & "ms" & @CRLF & _
+             "Visible Edge: " & $aAutoSlideStatus[3] & "px" & @CRLF & @CRLF
+    
+    ; MONITOR SETUP
+    $sInfo &= "MONITOR SETUP:" & @CRLF & _
+             "────────────────────────────" & @CRLF & _
+             "Anzahl Monitore: " & $aMonitors[0][0] & @CRLF
+    
+    For $i = 1 To $aMonitors[0][0]
+        $sInfo &= "Monitor " & $i & ": " & $aMonitors[$i][0] & "x" & $aMonitors[$i][1] & _
+                 " @ " & $aMonitors[$i][2] & "," & $aMonitors[$i][3] & @CRLF
+    Next
+    
+    $sInfo &= @CRLF & "HOTKEYS:" & @CRLF & _
+             "────────────────────────────" & @CRLF & _
+             "Alt + ← : Nach links sliden" & @CRLF & _
+             "Alt + → : Nach rechts sliden" & @CRLF & _
+             "Alt + ↑ : Nach oben sliden" & @CRLF & _
+             "Alt + ↓ : Nach unten sliden" & @CRLF & _
+             "Alt + Space : Auto-Slide pausieren/fortsetzen" & @CRLF & _
+             "ESC : Programm beenden" & @CRLF & @CRLF & _
+             "Debug: Alle Debug-Informationen werden in der Konsole ausgegeben." & @CRLF & @CRLF & _
+             "Autor: Ralle1976"
 
-    MsgBox(64, "ℹ Information & Hotkeys", $sInfo)
+    MsgBox(64, "ℹ System Information", $sInfo)
 EndFunc
 
-Func _OnTestAll()
-    Local $aModes[4] = ["Standard", "Classic", "Direct", "Continuous"]
-
+Func _OnSystemTest()
+    ConsoleWrite("=== SYSTEM-TEST GESTARTET ===" & @CRLF)
+    
+    ; Teste alle 4 Richtungen
+    Local $aDirections[4] = ["Rechts", "Unten", "Links", "Oben"]
+    Local $aFunctions[4] = ["_SliderSystem_SlideRight", "_SliderSystem_SlideDown", "_SliderSystem_SlideLeft", "_SliderSystem_SlideUp"]
+    
     For $i = 0 To 3
-        ConsoleWrite("Teste Modus: " & $aModes[$i] & @CRLF)
-        _SliderSystem_SetMode($aModes[$i])
-        GUICtrlSetData($comboMode, $aModes[$i])
-        _UpdateTestStatus()
-
-        ; Kurz warten
-        Sleep(1000)
-
-        ; Test-Bewegung
-        _SliderSystem_SlideRight()
-        Sleep(500)
-        _SliderSystem_SlideLeft()
-        Sleep(1000)
+        ConsoleWrite("Teste Slide-Richtung: " & $aDirections[$i] & @CRLF)
+        
+        ; Slide Out
+        Call($aFunctions[$i])
+        Sleep(800)
+        
+        ; Slide In (gleiche Funktion nochmal)
+        Call($aFunctions[$i])
+        Sleep(800)
     Next
-
-    ; Zurück zu Continuous
-    _SliderSystem_SetMode("Continuous")
-    GUICtrlSetData($comboMode, "Continuous")
-    _UpdateTestStatus()
-
-    MsgBox(0, "Test", "Alle Modi getestet! Zurück zu Continuous Mode.")
+    
+    ConsoleWrite("=== SYSTEM-TEST ABGESCHLOSSEN ===" & @CRLF)
+    MsgBox(0, "System-Test", "Alle Slide-Richtungen getestet!" & @CRLF & "Modus: Continuous (optimal)")
 EndFunc
 
 Func _OnReset()
@@ -322,7 +361,10 @@ Func _InitSliderSystem()
 
     ; Standard-Einstellungen
     _SliderSystem_SetMode("Continuous")
-    _SliderSystem_EnableAutoSlideIn(True, 250)
+    _SetAutoSlideMode(True, 750, 250)  ; Aktiviere Auto-Slide mit DelayOut=750ms, DelayIn=250ms
+
+    ; Auto-Slide Timer starten (alle 100ms prüfen)
+    AdlibRegister("_AutoSlideTimer", 100)
 
     ; Status aktualisieren
     _UpdateTestStatus()
@@ -350,7 +392,7 @@ Func _UpdateTestStatus()
     Local $sStatus = "Monitor: " & _SliderSystem_GetCurrentMonitor() & " | "
     $sStatus &= "Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & " | "
     $sStatus &= "Position: " & _SliderSystem_GetSlidePosition() & " | "
-    $sStatus &= "Modus: " & _SliderSystem_GetMode()
+    $sStatus &= "Modus: Continuous (optimal)"
 
     If $Old_str_status <> $sStatus Then
         GUICtrlSetData($lblStatus, $sStatus)
@@ -358,11 +400,14 @@ Func _UpdateTestStatus()
     EndIf
 
     Local $sInfo = "Geschwindigkeit: " & $iAnimationSpeed & "ms | "
-    $sInfo &= "Auto-Slide: " & ($bAutoSlideEnabled ? "EIN" : "AUS") & " | "
+    $sInfo &= "Auto-Slide: " & ($bAutoSlideEnabled ? ($bAutoSlidePaused ? "PAUSIERT" : "EIN") : "AUS") & " | "
     $sInfo &= "Visualizer: " & ($bVisualizerOn ? "EIN" : "AUS")
     If $Old_str_Info <> $sInfo Then
         GUICtrlSetData($lblInfo, $sInfo)
         $Old_str_Info = $sInfo
+        
+        ; Update auch den Info-Button Tooltip
+        GUICtrlSetTip($btnAbout, _GetQuickSystemInfo())
     EndIf
 EndFunc
 
@@ -397,8 +442,37 @@ Func _HotkeyStop()
     _OnStop()
 EndFunc
 
+; Auto-Slide Timer Callback
+Func _AutoSlideTimer()
+    If $bAutoSlideEnabled And Not $bAutoSlidePaused Then
+        _CheckAutoSlide($hMainGUI)
+    EndIf
+EndFunc
+
+; Quick System Info für Tooltip
+Func _GetQuickSystemInfo()
+    ; Prüfe ob System initialisiert ist
+    If Not $__SliderSystem_bInitialized Then
+        Return "System wird initialisiert..." & @CRLF & "Bitte warten..."
+    EndIf
+    
+    Local $aMonitors = _GetMonitors()
+    If Not IsArray($aMonitors) Or $aMonitors[0][0] = 0 Then
+        Return "Monitor-System nicht verfügbar"
+    EndIf
+    
+    Local $sQuickInfo = "=== SYSTEM INFO ===" & @CRLF
+    $sQuickInfo &= "Monitor: " & _SliderSystem_GetCurrentMonitor() & "/" & $aMonitors[0][0] & @CRLF
+    $sQuickInfo &= "Status: " & (_SliderSystem_IsSlideOut() ? "OUT" : "IN") & @CRLF
+    $sQuickInfo &= "Auto-Slide: " & ($bAutoSlideEnabled ? ($bAutoSlidePaused ? "PAUSIERT" : "AKTIV") : "AUS") & @CRLF
+    $sQuickInfo &= "Animation: " & $iAnimationSpeed & "ms" & @CRLF & @CRLF
+    $sQuickInfo &= "Klick für Details..."
+    Return $sQuickInfo
+EndFunc
+
 ; Cleanup und Exit
 Func _Exit()
+    AdlibUnRegister("_AutoSlideTimer")  ; Timer stoppen
     _SliderSystem_Cleanup()
     HotKeySet("!{LEFT}")
     HotKeySet("!{RIGHT}")

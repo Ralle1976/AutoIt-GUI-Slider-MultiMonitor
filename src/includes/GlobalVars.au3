@@ -52,4 +52,7 @@ Global $g_idBtnRight                     ; Button Rechts
 Global $g_idBtnUp                        ; Button Oben
 Global $g_idBtnDown                      ; Button Unten
 Global $g_idBtnCenter                    ; Button Zentrieren
+
+; Auto-Slide Flags
+Global $g_bAutoSlideActive_Internal = False  ; Verhindert Überschreibung von g_sSwitchSide
 #EndRegion Global Variables - GUI Controls

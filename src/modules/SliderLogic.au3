@@ -30,15 +30,38 @@ Func _SlideWindow($hWindow, $iScreenNum = Default, $sSide = Default, $sInOrOut =
     ; Update globale Variablen
     If $bResult Then
         $g_iCurrentScreenNumber = $iScreenNum
-        $g_sSwitchSide = $sSide
-        $g_bWindowIsOut = ($sInOrOut = $ANIM_OUT)
-        If $sInOrOut = $ANIM_OUT Then
-            $g_sWindowIsAt = $sSide
+        
+        _LogDebug("=== _SlideWindow STATUS UPDATE ===")
+        _LogDebug("Slide-Aktion: " & $sSide & " -> " & $sInOrOut)
+        _LogDebug("Auto-Slide aktiv: " & $g_bAutoSlideActive_Internal)
+        
+        ; WICHTIG: Überschreibe g_sSwitchSide nur bei manuellen Slides, NICHT bei Auto-Slide!
+        If Not $g_bAutoSlideActive_Internal Then
+            _LogDebug("MANUELLER SLIDE - Setze g_sSwitchSide: '" & $g_sSwitchSide & "' -> '" & $sSide & "'")
+            $g_sSwitchSide = $sSide
+            _LogDebug("Manueller Slide: g_sSwitchSide auf '" & $sSide & "' gesetzt")
         Else
-            $g_sWindowIsAt = $POS_CENTER  ; Nach Slide IN ist das Fenster zentriert
+            _LogDebug("AUTO-SLIDE - g_sSwitchSide NICHT überschrieben (bleibt: '" & $g_sSwitchSide & "')")
         EndIf
         
-        _LogInfo("Status aktualisiert: WindowIsOut=" & $g_bWindowIsOut & ", WindowIsAt=" & $g_sWindowIsAt)
+        $g_bWindowIsOut = ($sInOrOut = $ANIM_OUT)
+        _LogDebug("Setze g_bWindowIsOut=" & $g_bWindowIsOut)
+        
+        If $sInOrOut = $ANIM_OUT Then
+            $g_sWindowIsAt = $sSide
+            _LogDebug("Slide OUT - Setze g_sWindowIsAt='" & $sSide & "'")
+        Else
+            $g_sWindowIsAt = $POS_CENTER  ; Nach Slide IN ist das Fenster zentriert
+            _LogDebug("Slide IN - Setze g_sWindowIsAt='Center'")
+            ; WICHTIG: Bei Auto-Slide IN behalte die vorherige Slide-Richtung für den nächsten manuellen Klick
+            If $g_bAutoSlideActive_Internal Then
+                _LogDebug("Auto-Slide IN: Behalte g_sSwitchSide='" & $g_sSwitchSide & "' für nächsten manuellen Slide")
+            EndIf
+        EndIf
+        
+        _LogInfo("=== STATUS FINAL ===")
+        _LogInfo("WindowIsOut=" & $g_bWindowIsOut & ", WindowIsAt=" & $g_sWindowIsAt & ", SwitchSide=" & $g_sSwitchSide)
+        _LogInfo("=== STATUS ENDE ===")
     EndIf
     
     Return $bResult
@@ -329,6 +352,9 @@ Func _CenterOnMonitor($hWindow, $iMonitor = Default)
     $g_iCurrentScreenNumber = $iMonitor
     $g_bWindowIsOut = False
     $g_sWindowIsAt = $POS_CENTER
+    
+    ; WICHTIG: g_sSwitchSide wird NICHT geändert, damit die manuelle Slide-Richtung erhalten bleibt
+    _LogDebug("CenterOnMonitor: g_sSwitchSide bleibt unverändert: '" & $g_sSwitchSide & "'")
     
     Return True
 EndFunc

@@ -29,6 +29,7 @@
 #include "src\modules\Logging.au3"
 #include "src\modules\Visualization.au3"
 #include "src\modules\GUIControl.au3"
+#include "src\modules\AutoSlideMode.au3"
 
 ; ==========================================
 ; UDF Constants
@@ -137,7 +138,7 @@ EndFunc
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _SliderSystem_EnableAutoSlideIn
-; Description ...: Aktiviert/Deaktiviert Auto-Slide-In
+; Description ...: Aktiviert/Deaktiviert Auto-Slide (Legacy-Wrapper für neue AutoSlideMode)
 ; Syntax ........: _SliderSystem_EnableAutoSlideIn([$bEnable = True[, $iDelay = 250]])
 ; Parameters ....: $bEnable - True/False, $iDelay - Verzögerung in ms (optional)
 ; Return values .: Success - True, Failure - False und setzt @error
@@ -145,17 +146,14 @@ EndFunc
 Func _SliderSystem_EnableAutoSlideIn($bEnable = True, $iDelay = 250)
     If Not $__SliderSystem_bInitialized Then Return SetError(1, 0, False)
     
-    If $__SliderSystem_bAutoSlideIn Then
-        AdlibUnRegister("_CheckAutoSlideIn")
-        $__SliderSystem_bAutoSlideIn = False
-    EndIf
+    ; Verwende neues AutoSlideMode System
+    _SetAutoSlideMode($bEnable, $iDelay + 500, $iDelay)  ; DelayOut=iDelay+500ms, DelayIn=iDelay
+    $__SliderSystem_bAutoSlideIn = $bEnable
     
     If $bEnable Then
-        AdlibRegister("_CheckAutoSlideIn", $iDelay)
-        $__SliderSystem_bAutoSlideIn = True
-        _LogInfo("Auto-Slide-In aktiviert (" & $iDelay & "ms)")
+        _LogInfo("Auto-Slide aktiviert mit neuem System (DelayOut=" & ($iDelay + 500) & "ms, DelayIn=" & $iDelay & "ms)")
     Else
-        _LogInfo("Auto-Slide-In deaktiviert")
+        _LogInfo("Auto-Slide deaktiviert")
     EndIf
     
     Return True
@@ -337,7 +335,7 @@ EndFunc
 ; ===============================================================================================================================
 Func _SliderSystem_Cleanup()
     If $__SliderSystem_bAutoSlideIn Then
-        AdlibUnRegister("_CheckAutoSlideIn")
+        _SetAutoSlideMode(False)  ; Deaktiviere neues AutoSlideMode System
         $__SliderSystem_bAutoSlideIn = False
     EndIf
     

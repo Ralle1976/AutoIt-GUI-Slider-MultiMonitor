@@ -17,6 +17,7 @@
 #include "modules\GUIControl.au3"
 #include "modules\Logging.au3"
 #include "modules\Visualization.au3"
+#include "modules\AutoSlideMode.au3"
 
 ; ==========================================
 ; Hauptprogramm
@@ -62,16 +63,16 @@ Func _Main()
     ; Erstelle Tray-Menü
     _CreateTrayMenu()
 
-    ; Registriere Auto-Slide-In wenn aktiviert
+    ; Registriere Auto-Slide wenn aktiviert
     Local $aBehavior = _GetBehaviorSettings()
     Local $bAutoSlideIn = False
     Local $iAutoSlideInDelay = 250
 
     For $i = 0 To UBound($aBehavior) - 1
         Switch $aBehavior[$i][0]
-            Case "AutoSlideIn"
+            Case "AutoSlideMode"
                 $bAutoSlideIn = $aBehavior[$i][1]
-            Case "AutoSlideInDelay"
+            Case "AutoSlideDelay"
                 $iAutoSlideInDelay = Int($aBehavior[$i][1])
             Case "ClassicSliderMode"
                 $g_bClassicSliderMode = $aBehavior[$i][1]
@@ -103,8 +104,8 @@ Func _Main()
     _LogInfo("Slider-Modus: " & $sActiveMode)
 
     If $bAutoSlideIn Then
-        AdlibRegister("_CheckAutoSlideIn", $iAutoSlideInDelay)
-        _LogInfo("Auto-Slide-In aktiviert (Interval: " & $iAutoSlideInDelay & "ms)")
+        _SetAutoSlideMode(True, 500, $iAutoSlideInDelay)
+        _LogInfo("Auto-Slide aktiviert (Delay Out: 500ms, Delay In: " & $iAutoSlideInDelay & "ms)")
     EndIf
 
     ; Hauptschleife
@@ -127,6 +128,9 @@ Func _Main()
         ; Visualisierung regelmäßig aktualisieren
         If TimerDiff($iVisUpdate) > 100 Then  ; Alle 100ms
             _UpdateVisualization()
+
+            ; Auto-Slide prüfen
+            _CheckAutoSlide($g_hMainGUI)
 
             ; Automatische GUI-Wiederherstellung wenn außerhalb
             Local $aPos = WinGetPos($g_hMainGUI)
@@ -284,8 +288,8 @@ Func _Cleanup()
     ; Speichere aktuelle Position
     _SaveConfig()
 
-    ; Deaktiviere Auto-Slide-In
-    AdlibUnRegister("_CheckAutoSlideIn")
+    ; Deaktiviere Auto-Slide
+    _SetAutoSlideMode(False)
 
     ; Entferne Hotkeys
     HotKeySet("!{Left}")

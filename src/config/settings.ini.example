@@ -23,8 +23,8 @@ StartOnPrimaryMonitor=1
 CenterOnStart=1
 AnimateOnStart=0
 SavePositionOnExit=1
-AutoSlideIn=1
-AutoSlideInDelay=250
+AutoSlideMode=1
+AutoSlideDelay=250
 
 ; Slider Modi (nur EINEN aktivieren):
 ClassicSliderMode=0       ; 0=Aus, 1=An (2-Klick System)

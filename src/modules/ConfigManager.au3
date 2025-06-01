@@ -19,6 +19,9 @@ Func _LoadConfig()
     $g_iLastMonitor = Int(IniRead($g_sConfigFile, "General", "LastMonitor", 1))
     $g_iCurrentScreenNumber = $g_iLastMonitor  ; Setze aktuellen Monitor auf letzten bekannten Monitor
     
+    ; Lade letzte Slide-Richtung (wichtig für Auto-Slide)
+    $g_sSwitchSide = IniRead($g_sConfigFile, "General", "LastSlideDirection", $POS_TOP)
+    
     ; Lade Animations-Einstellungen
     Local $iSpeed = Int(IniRead($g_sConfigFile, "Animation", "AnimationSpeed", 20))
     Local $iSteps = Int(IniRead($g_sConfigFile, "Animation", "SlideSteps", 10))
@@ -52,6 +55,7 @@ Func _SaveConfig()
     ; Speichere allgemeine Einstellungen
     IniWrite($g_sConfigFile, "General", "LastPosition", $g_sWindowIsAt)
     IniWrite($g_sConfigFile, "General", "LastMonitor", $g_iCurrentScreenNumber)
+    IniWrite($g_sConfigFile, "General", "LastSlideDirection", $g_sSwitchSide)  ; Speichere letzte Slide-Richtung
     If $g_bWindowIsOut Then
         IniWrite($g_sConfigFile, "General", "LastWindowState", "Out")
     Else
@@ -84,6 +88,7 @@ Func _CreateDefaultConfig()
     ; General Section
     IniWrite($g_sConfigFile, "General", "LastPosition", "Center")
     IniWrite($g_sConfigFile, "General", "LastMonitor", "1")
+    IniWrite($g_sConfigFile, "General", "LastSlideDirection", "Top")
     IniWrite($g_sConfigFile, "General", "LastWindowState", "Normal")
     
     ; Animation Section
@@ -103,8 +108,8 @@ Func _CreateDefaultConfig()
     IniWrite($g_sConfigFile, "Behavior", "CenterOnStart", "1")
     IniWrite($g_sConfigFile, "Behavior", "AnimateOnStart", "0")
     IniWrite($g_sConfigFile, "Behavior", "SavePositionOnExit", "1")
-    IniWrite($g_sConfigFile, "Behavior", "AutoSlideIn", "0")
-    IniWrite($g_sConfigFile, "Behavior", "AutoSlideInDelay", "250")
+    IniWrite($g_sConfigFile, "Behavior", "AutoSlideMode", "1")
+    IniWrite($g_sConfigFile, "Behavior", "AutoSlideDelay", "250")
     IniWrite($g_sConfigFile, "Behavior", "ClassicSliderMode", "0")
     IniWrite($g_sConfigFile, "Behavior", "DirectSlideMode", "0")
     IniWrite($g_sConfigFile, "Behavior", "ContinuousSlideMode", "0")
@@ -153,8 +158,8 @@ Func _GetBehaviorSettings()
         ["CenterOnStart", IniRead($g_sConfigFile, "Behavior", "CenterOnStart", "1") = "1"], _
         ["AnimateOnStart", IniRead($g_sConfigFile, "Behavior", "AnimateOnStart", "0") = "1"], _
         ["SavePositionOnExit", IniRead($g_sConfigFile, "Behavior", "SavePositionOnExit", "1") = "1"], _
-        ["AutoSlideIn", IniRead($g_sConfigFile, "Behavior", "AutoSlideIn", "0") = "1"], _
-        ["AutoSlideInDelay", Int(IniRead($g_sConfigFile, "Behavior", "AutoSlideInDelay", "250"))], _
+        ["AutoSlideMode", IniRead($g_sConfigFile, "Behavior", "AutoSlideMode", "1") = "1"], _
+        ["AutoSlideDelay", Int(IniRead($g_sConfigFile, "Behavior", "AutoSlideDelay", "250"))], _
         ["ClassicSliderMode", IniRead($g_sConfigFile, "Behavior", "ClassicSliderMode", "0") = "1"], _
         ["DirectSlideMode", IniRead($g_sConfigFile, "Behavior", "DirectSlideMode", "0") = "1"], _
         ["ContinuousSlideMode", IniRead($g_sConfigFile, "Behavior", "ContinuousSlideMode", "0") = "1"] _
