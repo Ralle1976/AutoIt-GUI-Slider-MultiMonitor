@@ -17,23 +17,21 @@ Ein professionelles AutoIt-Tool für intelligente GUI-Navigation zwischen mehrer
 ## 📦 Installation
 
 1. **Download**: Repository klonen oder herunterladen
-2. **Include**: Wählen Sie eine der beiden Optionen:
-   
-   **Option A - Einfache API (empfohlen für Anfänger):**
-   ```autoit
-   #include "SliderSystem.au3"
-   ```
-   
-   **Option B - Direkte Integration:**
+2. **Include**: Fügen Sie die notwendigen Dateien in Ihr Projekt ein:
    ```autoit
    #include "src/includes/globals.au3"
+   ```
+   
+   **Alternative**: Für eine vereinfachte Nutzung können Sie auch die fertige UDF verwenden:
+   ```autoit
+   #include "SliderSystem.au3"  ; Wrapper-UDF mit vereinfachten Funktionsnamen
    ```
 
 ## ⚡ Schnellstart
 
 ```autoit
 #include <GUIConstantsEx.au3>
-#include "src/includes/globals.au3"  ; Option B - Direkte Integration
+#include "src/includes/globals.au3"
 
 ; Ihr GUI erstellen
 Local $hGUI = GUICreate("Mein Programm", 400, 300)
@@ -165,7 +163,7 @@ GUICtrlSetData($lblStatus, $sStatus)
 
 ```
 GUI-Slider-MultiMonitor/
-├── SliderSystem.au3                    # Einfache API Wrapper (Option A)
+├── SliderSystem.au3                    # Wrapper-UDF (alternative vereinfachte Nutzung)
 ├── src/
 │   ├── main.au3                        # Haupteinstiegspunkt
 │   ├── includes/
